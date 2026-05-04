@@ -1,0 +1,283 @@
+﻿# =========================================================================
+# CIS BENCHMARK LEVEL 1 - MASTER AUDIT SCRIPT (PRO VERSION)
+# Output: Streamlined HTML Report (Collapsible) + JSON + Enhanced Console
+# =========================================================================
+
+# 1. SETUP DIRECTORIES & TIMESTAMPS
+$BaseDir = "C:\CIS-Automation"
+$Paths = @("$BaseDir\Scripts", "$BaseDir\Reports\HTML", "$BaseDir\Reports\JSON", "$BaseDir\Logs")
+foreach ($p in $Paths) { if (-not (Test-Path $p)) { New-Item -ItemType Directory -Force -Path $p | Out-Null } }
+
+$StartTime = Get-Date
+$TimestampFile = $StartTime.ToString("yyyyMMdd_HHmmss")
+$TimestampDisplay = $StartTime.ToString("dd/MM/yyyy HH:mm:ss")
+$OSInfo = (Get-CimInstance Win32_OperatingSystem).Caption
+
+# 2. CONSOLE HEADER
+Clear-Host
+Write-Host "===============================================================================" -ForegroundColor Cyan
+Write-Host " BAT DAU QUET (AUDIT) HE THONG THEO CHUAN CIS BENCHMARK V5.0.0" -ForegroundColor White -BackgroundColor DarkBlue
+Write-Host " Thoi gian bat dau : $TimestampDisplay" -ForegroundColor Cyan
+Write-Host " He dieu hanh      : $OSInfo" -ForegroundColor Cyan
+Write-Host "===============================================================================`n" -ForegroundColor Cyan
+
+# 3. DEFINE AUDIT RULES (Intentionally keeping your exact rules)
+$AuditRules = @(
+    # --- NHÓM 1: NETWORK SECURITY & ACCESS ---
+    [PSCustomObject]@{ GrpId="1"; GrpName="Network Security & Access"; SubId="2.3"; SubName="Security Options"; CisId="2.3.8.1"; Desc="Ensure 'Microsoft network client: Digitally sign communications (always)' is set to 'Enabled'"; Path="HKLM:\SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Parameters"; Key="RequireSecuritySignature"; Expected="1" }
+    [PSCustomObject]@{ GrpId="1"; GrpName="Network Security & Access"; SubId="2.3"; SubName="Security Options"; CisId="2.3.8.2"; Desc="Ensure 'Microsoft network client: Send unencrypted password to third-party SMB servers' is set to 'Disabled'"; Path="HKLM:\SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Parameters"; Key="EnablePlainTextPassword"; Expected="0" }
+    [PSCustomObject]@{ GrpId="1"; GrpName="Network Security & Access"; SubId="2.3"; SubName="Security Options"; CisId="2.3.9.1"; Desc="Ensure 'Microsoft network server: Amount of idle time required before suspending session' is set to '15 or fewer minute(s)'"; Path="HKLM:\SYSTEM\CurrentControlSet\Services\LanManServer\Parameters"; Key="autodisconnect"; Expected="15" }
+    [PSCustomObject]@{ GrpId="1"; GrpName="Network Security & Access"; SubId="2.3"; SubName="Security Options"; CisId="2.3.9.2"; Desc="Ensure 'Microsoft network server: Digitally sign communications (always)' is set to 'Enabled'"; Path="HKLM:\SYSTEM\CurrentControlSet\Services\LanManServer\Parameters"; Key="RequireSecuritySignature"; Expected="1" }
+    [PSCustomObject]@{ GrpId="1"; GrpName="Network Security & Access"; SubId="2.3"; SubName="Security Options"; CisId="2.3.9.3"; Desc="Ensure 'Microsoft network server: Disconnect clients when logon hours expire' is set to 'Enabled'"; Path="HKLM:\SYSTEM\CurrentControlSet\Services\LanManServer\Parameters"; Key="enableforcedlogoff"; Expected="1" }
+    [PSCustomObject]@{ GrpId="1"; GrpName="Network Security & Access"; SubId="2.3"; SubName="Security Options"; CisId="2.3.9.4"; Desc="Ensure 'Microsoft network server: Server SPN target name validation level' is set to 'Accept if provided by client' or higher"; Path="HKLM:\SYSTEM\CurrentControlSet\Services\LanManServer\Parameters"; Key="SmbServerNameHardeningLevel"; Expected="1" }
+    [PSCustomObject]@{ GrpId="1"; GrpName="Network Security & Access"; SubId="2.3"; SubName="Security Options"; CisId="2.3.10.1"; Desc="Ensure 'Network access: Allow anonymous SID/Name translation' is set to 'Disabled'"; Path="HKLM:\SYSTEM\CurrentControlSet\Control\Lsa"; Key="TurnOffAnonymousBlock"; Expected="1" }
+    [PSCustomObject]@{ GrpId="1"; GrpName="Network Security & Access"; SubId="2.3"; SubName="Security Options"; CisId="2.3.10.2"; Desc="Ensure 'Network access: Do not allow anonymous enumeration of SAM accounts' is set to 'Enabled' (MS only)"; Path="HKLM:\SYSTEM\CurrentControlSet\Control\Lsa"; Key="RestrictAnonymousSAM"; Expected="1" }
+    [PSCustomObject]@{ GrpId="1"; GrpName="Network Security & Access"; SubId="2.3"; SubName="Security Options"; CisId="2.3.10.3"; Desc="Ensure 'Network access: Do not allow anonymous enumeration of SAM accounts and shares' is set to 'Enabled' (MS only)"; Path="HKLM:\SYSTEM\CurrentControlSet\Control\Lsa"; Key="RestrictAnonymous"; Expected="1" }
+    [PSCustomObject]@{ GrpId="1"; GrpName="Network Security & Access"; SubId="2.3"; SubName="Security Options"; CisId="2.3.10.5"; Desc="Ensure 'Network access: Let Everyone permissions apply to anonymous users' is set to 'Disabled'"; Path="HKLM:\SYSTEM\CurrentControlSet\Control\Lsa"; Key="EveryoneIncludesAnonymous"; Expected="0" }
+    [PSCustomObject]@{ GrpId="1"; GrpName="Network Security & Access"; SubId="2.3"; SubName="Security Options"; CisId="2.3.10.6"; Desc="Ensure 'Network access: Named Pipes that can be accessed anonymously' is configured (DC only)"; Path="HKLM:\SYSTEM\CurrentControlSet\Services\LanManServer\Parameters"; Key="NullSessionPipes"; Expected="Array" }
+    [PSCustomObject]@{ GrpId="1"; GrpName="Network Security & Access"; SubId="2.3"; SubName="Security Options"; CisId="2.3.10.7"; Desc="Ensure 'Network access: Named Pipes that can be accessed anonymously' is configured (MS only)"; Path="HKLM:\SYSTEM\CurrentControlSet\Services\LanManServer\Parameters"; Key="NullSessionPipes"; Expected="Array" }
+    [PSCustomObject]@{ GrpId="1"; GrpName="Network Security & Access"; SubId="2.3"; SubName="Security Options"; CisId="2.3.10.8"; Desc="Ensure 'Network access: Remotely accessible registry paths' is configured"; Path="HKLM:\SYSTEM\CurrentControlSet\Control\SecurePipeServers\Winreg\AllowedExactPaths"; Key="Machine"; Expected="Array" }
+    [PSCustomObject]@{ GrpId="1"; GrpName="Network Security & Access"; SubId="2.3"; SubName="Security Options"; CisId="2.3.10.9"; Desc="Ensure 'Network access: Remotely accessible registry paths and sub-paths' is configured"; Path="HKLM:\SYSTEM\CurrentControlSet\Control\SecurePipeServers\Winreg\AllowedPaths"; Key="Machine"; Expected="Array" }
+    [PSCustomObject]@{ GrpId="1"; GrpName="Network Security & Access"; SubId="2.3"; SubName="Security Options"; CisId="2.3.10.10"; Desc="Ensure 'Network access: Restrict anonymous access to Named Pipes and Shares' is set to 'Enabled'"; Path="HKLM:\SYSTEM\CurrentControlSet\Services\LanManServer\Parameters"; Key="RestrictNullSessAccess"; Expected="1" }
+    [PSCustomObject]@{ GrpId="1"; GrpName="Network Security & Access"; SubId="2.3"; SubName="Security Options"; CisId="2.3.10.11"; Desc="Ensure 'Network access: Restrict clients allowed to make remote calls to SAM' is set to 'Administrators: Remote Access: Allow'"; Path="HKLM:\SYSTEM\CurrentControlSet\Control\Lsa"; Key="restrictremotesam"; Expected="O:BAG:BAD:(A;;RC;;;BA)" }
+    [PSCustomObject]@{ GrpId="1"; GrpName="Network Security & Access"; SubId="2.3"; SubName="Security Options"; CisId="2.3.10.12"; Desc="Ensure 'Network access: Shares that can be accessed anonymously' is set to 'None'"; Path="HKLM:\SYSTEM\CurrentControlSet\Services\LanManServer\Parameters"; Key="NullSessionShares"; Expected="" }
+    [PSCustomObject]@{ GrpId="1"; GrpName="Network Security & Access"; SubId="2.3"; SubName="Security Options"; CisId="2.3.10.13"; Desc="Ensure 'Network access: Sharing and security model for local accounts' is set to 'Classic - local users authenticate as themselves'"; Path="HKLM:\SYSTEM\CurrentControlSet\Control\Lsa"; Key="ForceGuest"; Expected="0" }
+    [PSCustomObject]@{ GrpId="1"; GrpName="Network Security & Access"; SubId="2.3"; SubName="Security Options"; CisId="2.3.11.1"; Desc="Ensure 'Network security: Allow Local System to use computer identity for NTLM' is set to 'Enabled'"; Path="HKLM:\SYSTEM\CurrentControlSet\Control\Lsa"; Key="UseMachineId"; Expected="1" }
+    [PSCustomObject]@{ GrpId="1"; GrpName="Network Security & Access"; SubId="2.3"; SubName="Security Options"; CisId="2.3.11.2"; Desc="Ensure 'Network security: Allow LocalSystem NULL session fallback' is set to 'Disabled'"; Path="HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\MSV1_0"; Key="AllowNullSessionFallback"; Expected="0" }
+    [PSCustomObject]@{ GrpId="1"; GrpName="Network Security & Access"; SubId="2.3"; SubName="Security Options"; CisId="2.3.11.3"; Desc="Ensure 'Network Security: Allow PKU2U authentication requests to this computer to use online identities' is set to 'Disabled'"; Path="HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\pku2u"; Key="AllowOnlineID"; Expected="0" }
+    [PSCustomObject]@{ GrpId="1"; GrpName="Network Security & Access"; SubId="2.3"; SubName="Security Options"; CisId="2.3.11.4"; Desc="Ensure 'Network security: Configure encryption types allowed for Kerberos' is set to 'AES128_HMAC_SHA1, AES256_HMAC_SHA1, Future encryption types'"; Path="HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Kerberos\Parameters"; Key="SupportedEncryptionTypes"; Expected="2147483640" }
+    [PSCustomObject]@{ GrpId="1"; GrpName="Network Security & Access"; SubId="2.3"; SubName="Security Options"; CisId="2.3.11.5"; Desc="Ensure 'Network security: Do not store LAN Manager hash value on next password change' is set to 'Enabled'"; Path="HKLM:\SYSTEM\CurrentControlSet\Control\Lsa"; Key="NoLMHash"; Expected="1" }
+    [PSCustomObject]@{ GrpId="1"; GrpName="Network Security & Access"; SubId="2.3"; SubName="Security Options"; CisId="2.3.11.6"; Desc="Ensure 'Network security: Force logoff when logon hours expire' is set to 'Enabled'"; Path="HKLM:\SYSTEM\CurrentControlSet\Services\LanManServer\Parameters"; Key="enableforcedlogoff"; Expected="1" }
+    [PSCustomObject]@{ GrpId="1"; GrpName="Network Security & Access"; SubId="2.3"; SubName="Security Options"; CisId="2.3.11.7"; Desc="Ensure 'Network security: LAN Manager authentication level' is set to 'Send NTLMv2 response only. Refuse LM & NTLM'"; Path="HKLM:\SYSTEM\CurrentControlSet\Control\Lsa"; Key="LmCompatibilityLevel"; Expected="5" }
+    [PSCustomObject]@{ GrpId="1"; GrpName="Network Security & Access"; SubId="2.3"; SubName="Security Options"; CisId="2.3.11.8"; Desc="Ensure 'Network security: LDAP client signing requirements' is set to 'Negotiate signing' or higher"; Path="HKLM:\SYSTEM\CurrentControlSet\Services\LDAP"; Key="LDAPClientIntegrity"; Expected="1" }
+    [PSCustomObject]@{ GrpId="1"; GrpName="Network Security & Access"; SubId="2.3"; SubName="Security Options"; CisId="2.3.11.9"; Desc="Ensure 'Network security: Minimum session security for NTLM SSP based (including secure RPC) clients' is set to 'Require NTLMv2 session security, Require 128-bit encryption'"; Path="HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\MSV1_0"; Key="NTLMMinClientSec"; Expected="536870912" }
+    [PSCustomObject]@{ GrpId="1"; GrpName="Network Security & Access"; SubId="2.3"; SubName="Security Options"; CisId="2.3.11.10"; Desc="Ensure 'Network security: Minimum session security for NTLM SSP based (including secure RPC) servers' is set to 'Require NTLMv2 session security, Require 128-bit encryption'"; Path="HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\MSV1_0"; Key="NTLMMinServerSec"; Expected="536870912" }
+    [PSCustomObject]@{ GrpId="1"; GrpName="Network Security & Access"; SubId="2.3"; SubName="Security Options"; CisId="2.3.11.11"; Desc="Ensure 'Network security: Restrict NTLM: Audit Incoming NTLM Traffic' is set to 'Enable auditing for all accounts'"; Path="HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\MSV1_0"; Key="AuditReceivingNTLMTraffic"; Expected="2" }
+    [PSCustomObject]@{ GrpId="1"; GrpName="Network Security & Access"; SubId="2.3"; SubName="Security Options"; CisId="2.3.11.12"; Desc="Ensure 'Network security: Restrict NTLM: Audit NTLM authentication in this domain' is set to 'Enable all' (DC only)"; Path="HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\MSV1_0"; Key="AuditNTLMInDomain"; Expected="1" }
+    [PSCustomObject]@{ GrpId="1"; GrpName="Network Security & Access"; SubId="2.3"; SubName="Security Options"; CisId="2.3.11.13"; Desc="Ensure 'Network security: Restrict NTLM: Outgoing NTLM traffic to remote servers' is set to 'Audit all' or higher"; Path="HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\MSV1_0"; Key="AuditSendingNTLMTraffic"; Expected="1" }
+
+    # --- NHÓM 2: WINDOWS FIREWALL ---
+    [PSCustomObject]@{ GrpId="2"; GrpName="Windows Firewall"; SubId="9.1"; SubName="Domain Profile"; CisId="9.1.1"; Desc="Ensure 'Windows Firewall: Domain: Firewall state' is set to 'On (recommended)'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\WindowsFirewall\DomainProfile"; Key="EnableFirewall"; Expected="1" }
+    [PSCustomObject]@{ GrpId="2"; GrpName="Windows Firewall"; SubId="9.1"; SubName="Domain Profile"; CisId="9.1.2"; Desc="Ensure 'Windows Firewall: Domain: Inbound connections' is set to 'Block (default)'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\WindowsFirewall\DomainProfile"; Key="DefaultInboundAction"; Expected="1" }
+    [PSCustomObject]@{ GrpId="2"; GrpName="Windows Firewall"; SubId="9.1"; SubName="Domain Profile"; CisId="9.1.3"; Desc="Ensure 'Windows Firewall: Domain: Settings: Display a notification' is set to 'No'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\WindowsFirewall\DomainProfile"; Key="DisableNotifications"; Expected="1" }
+    [PSCustomObject]@{ GrpId="2"; GrpName="Windows Firewall"; SubId="9.1"; SubName="Domain Profile"; CisId="9.1.4"; Desc="Ensure 'Windows Firewall: Domain: Logging: Name' is configured"; Path="HKLM:\SOFTWARE\Policies\Microsoft\WindowsFirewall\DomainProfile\Logging"; Key="LogFilePath"; Expected="pfirewall.log" }
+    [PSCustomObject]@{ GrpId="2"; GrpName="Windows Firewall"; SubId="9.1"; SubName="Domain Profile"; CisId="9.1.5"; Desc="Ensure 'Windows Firewall: Domain: Logging: Size limit (KB)' is set to '16,384 KB or greater'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\WindowsFirewall\DomainProfile\Logging"; Key="LogFileSize"; Expected="16384" }
+    [PSCustomObject]@{ GrpId="2"; GrpName="Windows Firewall"; SubId="9.1"; SubName="Domain Profile"; CisId="9.1.6"; Desc="Ensure 'Windows Firewall: Domain: Logging: Log dropped packets' is set to 'Yes'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\WindowsFirewall\DomainProfile\Logging"; Key="LogDroppedPackets"; Expected="1" }
+    [PSCustomObject]@{ GrpId="2"; GrpName="Windows Firewall"; SubId="9.1"; SubName="Domain Profile"; CisId="9.1.7"; Desc="Ensure 'Windows Firewall: Domain: Logging: Log successful connections' is set to 'Yes'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\WindowsFirewall\DomainProfile\Logging"; Key="LogSuccessfulConnections"; Expected="1" }
+    
+    [PSCustomObject]@{ GrpId="2"; GrpName="Windows Firewall"; SubId="9.2"; SubName="Private Profile"; CisId="9.2.1"; Desc="Ensure 'Windows Firewall: Private: Firewall state' is set to 'On (recommended)'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\WindowsFirewall\PrivateProfile"; Key="EnableFirewall"; Expected="1" }
+    [PSCustomObject]@{ GrpId="2"; GrpName="Windows Firewall"; SubId="9.2"; SubName="Private Profile"; CisId="9.2.2"; Desc="Ensure 'Windows Firewall: Private: Inbound connections' is set to 'Block (default)'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\WindowsFirewall\PrivateProfile"; Key="DefaultInboundAction"; Expected="1" }
+    [PSCustomObject]@{ GrpId="2"; GrpName="Windows Firewall"; SubId="9.2"; SubName="Private Profile"; CisId="9.2.3"; Desc="Ensure 'Windows Firewall: Private: Settings: Display a notification' is set to 'No'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\WindowsFirewall\PrivateProfile"; Key="DisableNotifications"; Expected="1" }
+    [PSCustomObject]@{ GrpId="2"; GrpName="Windows Firewall"; SubId="9.2"; SubName="Private Profile"; CisId="9.2.4"; Desc="Ensure 'Windows Firewall: Private: Logging: Name' is configured"; Path="HKLM:\SOFTWARE\Policies\Microsoft\WindowsFirewall\PrivateProfile\Logging"; Key="LogFilePath"; Expected="pfirewall.log" }
+    [PSCustomObject]@{ GrpId="2"; GrpName="Windows Firewall"; SubId="9.2"; SubName="Private Profile"; CisId="9.2.5"; Desc="Ensure 'Windows Firewall: Private: Logging: Size limit (KB)' is set to '16,384 KB or greater'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\WindowsFirewall\PrivateProfile\Logging"; Key="LogFileSize"; Expected="16384" }
+    [PSCustomObject]@{ GrpId="2"; GrpName="Windows Firewall"; SubId="9.2"; SubName="Private Profile"; CisId="9.2.6"; Desc="Ensure 'Windows Firewall: Private: Logging: Log dropped packets' is set to 'Yes'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\WindowsFirewall\PrivateProfile\Logging"; Key="LogDroppedPackets"; Expected="1" }
+    [PSCustomObject]@{ GrpId="2"; GrpName="Windows Firewall"; SubId="9.2"; SubName="Private Profile"; CisId="9.2.7"; Desc="Ensure 'Windows Firewall: Private: Logging: Log successful connections' is set to 'Yes'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\WindowsFirewall\PrivateProfile\Logging"; Key="LogSuccessfulConnections"; Expected="1" }
+
+    [PSCustomObject]@{ GrpId="2"; GrpName="Windows Firewall"; SubId="9.3"; SubName="Public Profile"; CisId="9.3.1"; Desc="Ensure 'Windows Firewall: Public: Firewall state' is set to 'On (recommended)'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\WindowsFirewall\PublicProfile"; Key="EnableFirewall"; Expected="1" }
+    [PSCustomObject]@{ GrpId="2"; GrpName="Windows Firewall"; SubId="9.3"; SubName="Public Profile"; CisId="9.3.2"; Desc="Ensure 'Windows Firewall: Public: Inbound connections' is set to 'Block (default)'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\WindowsFirewall\PublicProfile"; Key="DefaultInboundAction"; Expected="1" }
+    [PSCustomObject]@{ GrpId="2"; GrpName="Windows Firewall"; SubId="9.3"; SubName="Public Profile"; CisId="9.3.3"; Desc="Ensure 'Windows Firewall: Public: Settings: Display a notification' is set to 'No'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\WindowsFirewall\PublicProfile"; Key="DisableNotifications"; Expected="1" }
+    [PSCustomObject]@{ GrpId="2"; GrpName="Windows Firewall"; SubId="9.3"; SubName="Public Profile"; CisId="9.3.4"; Desc="Ensure 'Windows Firewall: Public: Settings: Apply local firewall rules' is set to 'No'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\WindowsFirewall\PublicProfile"; Key="AllowLocalPolicyMerge"; Expected="0" }
+    [PSCustomObject]@{ GrpId="2"; GrpName="Windows Firewall"; SubId="9.3"; SubName="Public Profile"; CisId="9.3.5"; Desc="Ensure 'Windows Firewall: Public: Settings: Apply local connection security rules' is set to 'No'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\WindowsFirewall\PublicProfile"; Key="AllowLocalIPsecPolicyMerge"; Expected="0" }
+    [PSCustomObject]@{ GrpId="2"; GrpName="Windows Firewall"; SubId="9.3"; SubName="Public Profile"; CisId="9.3.6"; Desc="Ensure 'Windows Firewall: Public: Logging: Name' is configured"; Path="HKLM:\SOFTWARE\Policies\Microsoft\WindowsFirewall\PublicProfile\Logging"; Key="LogFilePath"; Expected="pfirewall.log" }
+    [PSCustomObject]@{ GrpId="2"; GrpName="Windows Firewall"; SubId="9.3"; SubName="Public Profile"; CisId="9.3.7"; Desc="Ensure 'Windows Firewall: Public: Logging: Size limit (KB)' is set to '16,384 KB or greater'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\WindowsFirewall\PublicProfile\Logging"; Key="LogFileSize"; Expected="16384" }
+    [PSCustomObject]@{ GrpId="2"; GrpName="Windows Firewall"; SubId="9.3"; SubName="Public Profile"; CisId="9.3.8"; Desc="Ensure 'Windows Firewall: Public: Logging: Log dropped packets' is set to 'Yes'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\WindowsFirewall\PublicProfile\Logging"; Key="LogDroppedPackets"; Expected="1" }
+    [PSCustomObject]@{ GrpId="2"; GrpName="Windows Firewall"; SubId="9.3"; SubName="Public Profile"; CisId="9.3.9"; Desc="Ensure 'Windows Firewall: Public: Logging: Log successful connections' is set to 'Yes'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\WindowsFirewall\PublicProfile\Logging"; Key="LogSuccessfulConnections"; Expected="1" }
+
+    # --- NHÓM 3: ADMINISTRATIVE TEMPLATES (NETWORK) ---
+    [PSCustomObject]@{ GrpId="3"; GrpName="Administrative Templates (Network)"; SubId="18.6"; SubName="Network"; CisId="18.6.4.1"; Desc="Ensure 'Configure multicast DNS (mDNS) protocol' is set to 'Disabled'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient"; Key="EnableMDNS"; Expected="0" }
+    [PSCustomObject]@{ GrpId="3"; GrpName="Administrative Templates (Network)"; SubId="18.6"; SubName="Network"; CisId="18.6.4.2"; Desc="Ensure 'Configure NetBIOS settings' is set to 'Enabled: Disable NetBIOS name resolution on public networks'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient"; Key="EnableNetbios"; Expected="2" }
+    [PSCustomObject]@{ GrpId="3"; GrpName="Administrative Templates (Network)"; SubId="18.6"; SubName="Network"; CisId="18.6.4.4"; Desc="Ensure 'Turn off multicast name resolution' is set to 'Enabled'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient"; Key="EnableMulticast"; Expected="0" }
+    [PSCustomObject]@{ GrpId="3"; GrpName="Administrative Templates (Network)"; SubId="18.6"; SubName="Network"; CisId="18.6.7.1"; Desc="Ensure 'Mandate the minimum version of SMB' is set to 'Enabled: 3.1.1'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\Windows\LanmanWorkstation"; Key="MinSmb2Dialect"; Expected="785" }
+    [PSCustomObject]@{ GrpId="3"; GrpName="Administrative Templates (Network)"; SubId="18.6"; SubName="Network"; CisId="18.6.8.1"; Desc="Ensure 'Enable insecure guest logons' is set to 'Disabled'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\Windows\LanmanWorkstation"; Key="AllowInsecureGuestAuth"; Expected="0" }
+    [PSCustomObject]@{ GrpId="3"; GrpName="Administrative Templates (Network)"; SubId="18.6"; SubName="Network"; CisId="18.6.8.2"; Desc="Ensure 'Require Encryption' is set to 'Enabled'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\Windows\LanmanWorkstation"; Key="RequireSecuritySignature"; Expected="1" }
+    [PSCustomObject]@{ GrpId="3"; GrpName="Administrative Templates (Network)"; SubId="18.6"; SubName="Network"; CisId="18.6.11.2"; Desc="Ensure 'Prohibit installation and configuration of Network Bridge on your DNS domain network' is set to 'Enabled'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\Windows\Network Connections"; Key="NC_AllowNetBridge_NLA"; Expected="0" }
+    [PSCustomObject]@{ GrpId="3"; GrpName="Administrative Templates (Network)"; SubId="18.6"; SubName="Network"; CisId="18.6.11.3"; Desc="Ensure 'Prohibit use of Internet Connection Sharing on your DNS domain network' is set to 'Enabled'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\Windows\Network Connections"; Key="NC_ShowSharedAccessUI"; Expected="0" }
+    [PSCustomObject]@{ GrpId="3"; GrpName="Administrative Templates (Network)"; SubId="18.6"; SubName="Network"; CisId="18.6.11.4"; Desc="Ensure 'Require domain users to elevate when setting a network''s location' is set to 'Enabled'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\Windows\Network Connections"; Key="NC_StdDomainUserSetLocation"; Expected="1" }
+    [PSCustomObject]@{ GrpId="3"; GrpName="Administrative Templates (Network)"; SubId="18.6"; SubName="Network"; CisId="18.6.14.1"; Desc="Ensure 'Hardened UNC Paths' is set to 'Enabled, with Require Mutual Authentication...'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\Windows\NetworkProvider\HardenedPaths"; Key="\\*\NETLOGON"; Expected="RequireMutualAuthentication=1, RequireIntegrity=1" }
+    [PSCustomObject]@{ GrpId="3"; GrpName="Administrative Templates (Network)"; SubId="18.6"; SubName="Network"; CisId="18.6.21.1"; Desc="Ensure 'Minimize the number of simultaneous connections to the Internet or a Windows Domain' is set to 'Enabled: 3 = Prevent Wi-Fi when on Ethernet'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\Windows\WcmSvc\GroupPolicy"; Key="fMinimizeConnections"; Expected="3" }
+
+    # --- NHÓM 4: SERVICES, PRINTERS & RDP ---
+    [PSCustomObject]@{ GrpId="4"; GrpName="Services, Printers & RDP"; SubId="5"; SubName="System Services"; CisId="5.1"; Desc="Ensure 'Print Spooler (Spooler)' is set to 'Disabled'"; Path="HKLM:\SYSTEM\CurrentControlSet\Services\Spooler"; Key="Start"; Expected="4" }
+    [PSCustomObject]@{ GrpId="4"; GrpName="Services, Printers & RDP"; SubId="18.7"; SubName="Printers"; CisId="18.7.1"; Desc="Ensure 'Allow Print Spooler to accept client connections' is set to 'Disabled'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Printers"; Key="RegisterSpoolerRemoteRpcEndPoint"; Expected="2" }
+    [PSCustomObject]@{ GrpId="4"; GrpName="Services, Printers & RDP"; SubId="18.7"; SubName="Printers"; CisId="18.7.2"; Desc="Ensure 'Configure Redirection Guard' is set to 'Enabled: Redirection Guard Enabled'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Printers"; Key="RedirectionGuardEnabled"; Expected="1" }
+    [PSCustomObject]@{ GrpId="4"; GrpName="Services, Printers & RDP"; SubId="18.7"; SubName="Printers"; CisId="18.7.3"; Desc="Ensure 'Configure RPC connection settings: Protocol to use for outgoing RPC connections' is set to 'Enabled: RPC over TCP'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Printers\RPC"; Key="RpcUseNamedPipeProtocol"; Expected="0" }
+    [PSCustomObject]@{ GrpId="4"; GrpName="Services, Printers & RDP"; SubId="18.7"; SubName="Printers"; CisId="18.7.4"; Desc="Ensure 'Configure RPC connection settings: Use authentication for outgoing RPC connections' is set to 'Enabled: Default'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Printers\RPC"; Key="RpcProtocols"; Expected="1" }
+    [PSCustomObject]@{ GrpId="4"; GrpName="Services, Printers & RDP"; SubId="18.7"; SubName="Printers"; CisId="18.7.5"; Desc="Ensure 'Configure RPC listener settings: Protocols to allow for incoming RPC connections' is set to 'Enabled: RPC over TCP'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Printers\RPC"; Key="ForceAuthentication"; Expected="1" }
+    [PSCustomObject]@{ GrpId="4"; GrpName="Services, Printers & RDP"; SubId="18.7"; SubName="Printers"; CisId="18.7.6"; Desc="Ensure 'Configure RPC listener settings: Authentication protocol to use for incoming RPC connections:' is set to 'Enabled: Negotiate' or higher"; Path="HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Printers\RPC"; Key="RpcAuthentication"; Expected="1" }
+    [PSCustomObject]@{ GrpId="4"; GrpName="Services, Printers & RDP"; SubId="18.7"; SubName="Printers"; CisId="18.7.7"; Desc="Ensure 'Configure RPC over TCP port' is set to 'Enabled: 0'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Printers\RPC"; Key="RpcTcpPort"; Expected="0" }
+    [PSCustomObject]@{ GrpId="4"; GrpName="Services, Printers & RDP"; SubId="18.7"; SubName="Printers"; CisId="18.7.8"; Desc="Ensure 'Configure RPC packet level privacy setting for incoming connections' is set to 'Enabled'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Printers\RPC"; Key="EnableRpcPrivacy"; Expected="1" }
+    [PSCustomObject]@{ GrpId="4"; GrpName="Services, Printers & RDP"; SubId="18.7"; SubName="Printers"; CisId="18.7.9"; Desc="Ensure 'Limits print driver installation to Administrators' is set to 'Enabled'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Printers\PointAndPrint"; Key="RestrictDriverInstallationToAdministrators"; Expected="1" }
+    [PSCustomObject]@{ GrpId="4"; GrpName="Services, Printers & RDP"; SubId="18.7"; SubName="Printers"; CisId="18.7.10"; Desc="Ensure 'Manage processing of Queue-specific files' is set to 'Enabled: Limit Queue-specific files to Color profiles'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Printers"; Key="QueueSpecificFiles"; Expected="1" }
+    [PSCustomObject]@{ GrpId="4"; GrpName="Services, Printers & RDP"; SubId="18.7"; SubName="Printers"; CisId="18.7.11"; Desc="Ensure 'Point and Print Restrictions: When installing drivers for a new connection' is set to 'Enabled: Show warning and elevation prompt'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Printers\PointAndPrint"; Key="UpdatePromptSettings"; Expected="0" }
+    [PSCustomObject]@{ GrpId="4"; GrpName="Services, Printers & RDP"; SubId="18.7"; SubName="Printers"; CisId="18.7.12"; Desc="Ensure 'Point and Print Restrictions: When updating drivers for an existing connection' is set to 'Enabled: Show warning and elevation prompt'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Printers\PointAndPrint"; Key="InForestUpdatePromptSettings"; Expected="0" }
+    [PSCustomObject]@{ GrpId="4"; GrpName="Services, Printers & RDP"; SubId="18.10"; SubName="Remote Desktop Services"; CisId="18.10.57.2.2"; Desc="Ensure 'Do not allow passwords to be saved' is set to 'Enabled'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services"; Key="DisablePasswordSaving"; Expected="1" }
+    [PSCustomObject]@{ GrpId="4"; GrpName="Services, Printers & RDP"; SubId="18.10"; SubName="Remote Desktop Services"; CisId="18.10.57.3.3.3"; Desc="Ensure 'Do not allow drive redirection' is set to 'Enabled'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services"; Key="fDisableCdm"; Expected="1" }
+    [PSCustomObject]@{ GrpId="4"; GrpName="Services, Printers & RDP"; SubId="18.10"; SubName="Remote Desktop Services"; CisId="18.10.57.3.9.1"; Desc="Ensure 'Always prompt for password upon connection' is set to 'Enabled'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services"; Key="fPromptForPassword"; Expected="1" }
+    [PSCustomObject]@{ GrpId="4"; GrpName="Services, Printers & RDP"; SubId="18.10"; SubName="Remote Desktop Services"; CisId="18.10.57.3.9.2"; Desc="Ensure 'Require secure RPC communication' is set to 'Enabled'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services"; Key="fEncryptRPCTraffic"; Expected="1" }
+    [PSCustomObject]@{ GrpId="4"; GrpName="Services, Printers & RDP"; SubId="18.10"; SubName="Remote Desktop Services"; CisId="18.10.57.3.9.3"; Desc="Ensure 'Require use of specific security layer for remote (RDP) connections' is set to 'Enabled: SSL'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services"; Key="SecurityLayer"; Expected="2" }
+    [PSCustomObject]@{ GrpId="4"; GrpName="Services, Printers & RDP"; SubId="18.10"; SubName="Remote Desktop Services"; CisId="18.10.57.3.9.4"; Desc="Ensure 'Require user authentication for remote connections by using Network Level Authentication' is set to 'Enabled'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services"; Key="UserAuthentication"; Expected="1" }
+    [PSCustomObject]@{ GrpId="4"; GrpName="Services, Printers & RDP"; SubId="18.10"; SubName="Remote Desktop Services"; CisId="18.10.57.3.9.5"; Desc="Ensure 'Set client connection encryption level' is set to 'Enabled: High Level'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services"; Key="MinEncryptionLevel"; Expected="3" }
+    [PSCustomObject]@{ GrpId="4"; GrpName="Services, Printers & RDP"; SubId="18.10"; SubName="Remote Desktop Services"; CisId="18.10.57.3.11.1"; Desc="Ensure 'Do not delete temp folders upon exit' is set to 'Disabled'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services"; Key="fDeleteTempFoldersOnExit"; Expected="1" }
+    [PSCustomObject]@{ GrpId="4"; GrpName="Services, Printers & RDP"; SubId="18.10"; SubName="Remote Desktop Services"; CisId="18.10.57.3.11.2"; Desc="Ensure 'Do not use temporary folders per session' is set to 'Disabled'"; Path="HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services"; Key="fUseTempFoldersPerSession"; Expected="1" }
+)
+
+# 4. THỰC HIỆN KIỂM TRA (AUDIT LOGIC)
+$Results = @()
+
+# Cấu hình hiển thị console (cắt gọn text để khỏi vỡ dòng)
+$fmt = "{0,-10} | {1,-35} | {2,-8} | {3,-15} | {4,-6}"
+Write-Host ($fmt -f "CIS ID", "Registry Key", "Expected", "Current", "Status")
+Write-Host ("-" * 85)
+
+foreach ($Rule in $AuditRules) {
+    $status = "Fail"
+    $strVal = "Not Configured"
+    
+    try {
+        $val = Get-ItemPropertyValue -Path $Rule.Path -Name $Rule.Key -ErrorAction Stop
+        $strVal = [string]$val
+        
+        # Xử lý logic ngoại lệ
+        if ([string]$val -eq [string]$Rule.Expected) { 
+            $status = "Pass" 
+        }
+        elseif ($Rule.CisId -eq "2.3.9.1" -and $val -le 15 -and $val -gt 0) { $status = "Pass" }
+        elseif ($Rule.CisId -eq "2.3.11.8" -and ($val -eq 1 -or $val -eq 2)) { $status = "Pass" }
+        elseif ($Rule.CisId -match "9.\d.[4]" -and $strVal -match "pfirewall.log") { $status = "Pass" }
+        elseif ($Rule.CisId -match "9.\d.[5]" -and $val -ge 16384) { $status = "Pass" }
+        elseif ($Rule.Expected -eq "Array" -and $val -ne $null) { $status = "Pass"; $strVal = "[Array]" }
+    } catch { 
+        $status = "Fail" 
+    }
+
+    # Ghi nhận kết quả
+    $Results += [PSCustomObject]@{
+        GrpId = $Rule.GrpId; GrpName = $Rule.GrpName; SubId = $Rule.SubId; SubName = $Rule.SubName
+        CisId = $Rule.CisId; Desc = $Rule.Desc; Status = $status
+    }
+    
+    # In ra Console
+    $col = if ($status -eq "Pass") { "Green" } else { "Red" }
+    $dispKey = if ($Rule.Key.Length -gt 32) { $Rule.Key.Substring(0,29) + "..." } else { $Rule.Key }
+    $dispCur = if ($strVal.Length -gt 15) { $strVal.Substring(0,12) + "..." } else { $strVal }
+    Write-Host ($fmt -f $Rule.CisId, $dispKey, $Rule.Expected, $dispCur, $status) -ForegroundColor $col
+}
+
+# --- XUẤT RA JSON ---
+$Results | ConvertTo-Json -Depth 4 | Out-File "$BaseDir\Reports\JSON\CIS-Audit-$TimestampFile.json" -Encoding UTF8
+
+# --- TẠO BÁO CÁO HTML (GIAO DIỆN CIS-CAT CLONE TINH GỌN) ---
+$HtmlHeader = @"
+<style>
+    body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; font-size: 13px; margin: 20px; background-color: #f9f9f9; }
+    h2 { color: #003366; }
+    .meta-info { margin-bottom: 20px; color: #555; }
+    table { width: 100%; border-collapse: collapse; border: 1px solid #ccc; background-color: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    th { background-color: #004080; color: white; border: 1px solid #ccc; padding: 8px; text-align: center; }
+    td { border: 1px solid #ccc; padding: 6px; }
+    .col-desc { text-align: left; }
+    .col-num { text-align: center; width: 60px; }
+    .row-group { background-color: #dbe4f0; font-weight: bold; cursor: pointer; color: #003366; }
+    .row-subgroup { background-color: #f0f4f8; cursor: pointer; color: #333; }
+    .row-item { display: none; }
+    
+    /* CSS Tối ưu hiển thị Pass/Fail */
+    .txt-pass { color: #28a745; font-weight: bold; }
+    .txt-fail { color: #dc3545; font-weight: bold; }
+    .txt-neutral { color: #6c757d; } /* Màu xám cho các số 0 */
+    
+    .footer-row { background-color: #cce0ff; font-weight: bold; color: #003366; }
+    .row-group:hover, .row-subgroup:hover { background-color: #cce0ff; }
+</style>
+<script>
+    function toggle(targetClass) {
+        var elements = document.getElementsByClassName(targetClass);
+        for(var i=0; i<elements.length; i++) {
+            elements[i].style.display = elements[i].style.display === 'table-row' ? 'none' : 'table-row';
+        }
+    }
+</script>
+"@
+
+$HtmlBody = "<h2>CIS Audit Report - Windows Server 2022 Benchmark</h2>"
+$HtmlBody += "<div class='meta-info'><b>Thoi gian quet:</b> $TimestampDisplay <br/> <b>He dieu hanh:</b> $OSInfo </div>"
+$HtmlBody += "<table><tr><th rowspan='2'>Description</th><th colspan='2'>Tests</th><th colspan='2'>Scoring</th></tr>"
+$HtmlBody += "<tr><th>Pass</th><th>Fail</th><th>Max</th><th>Percent</th></tr>"
+
+$TotalPass = 0; $TotalFail = 0
+$Groups = $Results | Group-Object GrpId
+
+foreach ($Grp in $Groups) {
+    $GrpPass = @($Grp.Group | Where-Object { $_.Status -eq "Pass" }).Count
+    $GrpFail = @($Grp.Group | Where-Object { $_.Status -eq "Fail" }).Count
+    $GrpMax = [int]$Grp.Count
+    $GrpPct = if($GrpMax -gt 0) { [math]::Round(($GrpPass/$GrpMax)*100) } else { 0 }
+    $TotalPass += $GrpPass; $TotalFail += $GrpFail
+    
+    $GrpName = $Grp.Group[0].GrpName
+    $clsGrp = "grp-" + $Grp.Name
+
+    # Xử lý màu sắc cấp Group
+    $cGrpPass = if ($GrpPass -gt 0) { "txt-pass" } else { "txt-neutral" }
+    $cGrpFail = if ($GrpFail -gt 0) { "txt-fail" } else { "txt-neutral" }
+
+    # Hiển thị Nhóm Lớn (Level 1)
+    $HtmlBody += "<tr class='row-group' onclick=`"toggle('$clsGrp')`">"
+    $HtmlBody += "<td class='col-desc'>$($Grp.Name) $GrpName</td>"
+    $HtmlBody += "<td class='col-num $cGrpPass'>$GrpPass</td><td class='col-num $cGrpFail'>$GrpFail</td>"
+    $HtmlBody += "<td class='col-num'>$GrpMax.0</td><td class='col-num'>$GrpPct%</td></tr>"
+
+    $SubGroups = $Grp.Group | Group-Object SubId
+    foreach ($Sub in $SubGroups) {
+        $SubPass = @($Sub.Group | Where-Object { $_.Status -eq "Pass" }).Count
+        $SubFail = @($Sub.Group | Where-Object { $_.Status -eq "Fail" }).Count
+        $SubMax = [int]$Sub.Count
+        $SubPct = if($SubMax -gt 0) { [math]::Round(($SubPass/$SubMax)*100) } else { 0 }
+        $SubName = $Sub.Group[0].SubName
+        $clsSub = "sub-" + $Sub.Name.Replace(".","")
+
+        # Xử lý màu sắc cấp SubGroup
+        $cSubPass = if ($SubPass -gt 0) { "txt-pass" } else { "txt-neutral" }
+        $cSubFail = if ($SubFail -gt 0) { "txt-fail" } else { "txt-neutral" }
+
+        # Hiển thị Nhóm Nhỏ (Level 2)
+        $HtmlBody += "<tr class='row-subgroup $clsGrp' style='display:none;' onclick=`"toggle('$clsSub')`">"
+        $HtmlBody += "<td class='col-desc'>&nbsp;&nbsp;&nbsp;&nbsp;$($Sub.Name) $SubName</td>"
+        $HtmlBody += "<td class='col-num $cSubPass'>$SubPass</td><td class='col-num $cSubFail'>$SubFail</td>"
+        $HtmlBody += "<td class='col-num'>$SubMax.0</td><td class='col-num'>$SubPct%</td></tr>"
+
+        # Hiển thị từng Policy (Level 3)
+        foreach ($Item in $Sub.Group) {
+            $iPass = if($Item.Status -eq "Pass"){1}else{0}
+            $iFail = if($Item.Status -eq "Fail"){1}else{0}
+            $iPct = if($iPass -eq 1){100}else{0}
+            
+            # Tô màu độc lập cho từng ô Pass và Fail
+            $cItemPass = if($iPass -eq 1){"txt-pass"}else{"txt-neutral"}
+            $cItemFail = if($iFail -eq 1){"txt-fail"}else{"txt-neutral"}
+            
+            $HtmlBody += "<tr class='row-item $clsGrp $clsSub'>"
+            $HtmlBody += "<td class='col-desc' style='color:#555;'>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;$($Item.CisId) $($Item.Desc)</td>"
+            $HtmlBody += "<td class='col-num $cItemPass'>$iPass</td><td class='col-num $cItemFail'>$iFail</td>"
+            $HtmlBody += "<td class='col-num'>1.0</td><td class='col-num'>$iPct%</td></tr>"
+        }
+    }
+}
+
+# HÀNG TỔNG KẾT (TOTAL BAR)
+$GrandMax = $TotalPass + $TotalFail
+$GrandPct = if($GrandMax -gt 0) { [math]::Round(($TotalPass/$GrandMax)*100) } else { 0 }
+$HtmlBody += "<tr class='footer-row'><td class='col-desc' style='text-align:right'>Total</td>"
+$HtmlBody += "<td class='col-num txt-pass'>$TotalPass</td><td class='col-num txt-fail'>$TotalFail</td>"
+$HtmlBody += "<td class='col-num'>$GrandMax.0</td><td class='col-num'>$GrandPct%</td></tr>"
+$HtmlBody += "</table>"
+
+$FinalHtml = "<!DOCTYPE html><html><head><title>CIS Audit Report</title>$HtmlHeader</head><body>$HtmlBody</body></html>"
+$HtmlPath = "$BaseDir\Reports\HTML\CIS-Audit-$TimestampFile.html"
+$FinalHtml | Out-File $HtmlPath -Encoding UTF8
+
+Write-Host "`n===============================================================================" -ForegroundColor Cyan
+Write-Host " QUET HOAN TAT! " -ForegroundColor Green
+Write-Host " [HTML Report] : $HtmlPath" -ForegroundColor Yellow
+Write-Host " [JSON Data]   : $BaseDir\Reports\JSON\CIS-Audit-$TimestampFile.json" -ForegroundColor Yellow
+Write-Host "===============================================================================" -ForegroundColor Cyan
