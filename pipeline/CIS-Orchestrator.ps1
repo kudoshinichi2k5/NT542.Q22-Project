@@ -5,6 +5,10 @@
 
 $BaseDir = "C:\CIS-Automation"
 $ProjectRoot = $PSScriptRoot
+$TemplateDir = Join-Path $ProjectRoot "templates"
+$CssTemplatePath = Join-Path $TemplateDir "autohealing-report.css"
+$HtmlTemplatePath = Join-Path $TemplateDir "autohealing-report.html.tpl"
+
 $AuditScript = Join-Path $ProjectRoot "audit\Network-Services-Security\CIS-WinServer2022-Audit.ps1"
 $RemediationScript = Join-Path $ProjectRoot "remediation\Network-Services-Security\CIS-WinServer2022-Remediation.ps1"
 $JsonDir = "$BaseDir\Reports\JSON"
@@ -33,6 +37,12 @@ if (-not (Test-Path $AuditScript)) {
 }
 if (-not (Test-Path $RemediationScript)) {
     throw "Remediation script not found: $RemediationScript"
+}
+if (-not (Test-Path $CssTemplatePath)) {
+    throw "CSS template not found: $CssTemplatePath"
+}
+if (-not (Test-Path $HtmlTemplatePath)) {
+    throw "HTML template not found: $HtmlTemplatePath"
 }
 
 # 1. PRE-AUDIT (Quét hiện trạng)
@@ -67,29 +77,11 @@ $PostData = Get-Content $PostAuditFile.FullName -Raw | ConvertFrom-Json
 # 5. DELTA REPORTING (Tạo báo cáo Auto-Healing chuyên biệt)
 Write-Host "[5/5] Dang tao Báo cáo Auto-Healing (HTML)..." -ForegroundColor Yellow
 
-$HtmlHeader = @"
-<style>
-    body { font-family: Arial, Tahoma, sans-serif; font-size: 14px; margin: 20px; color: #000; background-color: #f8f9fa; }
-    h2 { color: #5a2a82; text-align: center; text-transform: uppercase; font-weight: bold; margin-bottom: 10px; }
-    .meta-info { text-align: center; margin-bottom: 20px; color: #555; }
-    .alert-box { background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; padding: 15px; border-radius: 5px; margin-bottom: 20px; font-weight: bold; text-align: center; }
-    table { width: 100%; border-collapse: collapse; border: 1px solid #a0a0a0; background-color: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-    th { background-color: #5a2a82; color: #ffffff; border: 1px solid #a0a0a0; padding: 12px; font-weight: bold; text-align: center; }
-    td { border: 1px solid #a0a0a0; padding: 10px; color: #333; }
-    .col-id { text-align: center; font-weight: bold; width: 80px; }
-    .col-status { text-align: center; font-weight: bold; width: 120px; }
-    .txt-drift { color: #dc3545; }
-    .txt-healed { color: #28a745; background-color: #e8f5e9; padding: 4px 8px; border-radius: 4px; }
-    .txt-failed { color: #dc3545; background-color: #fde8e8; padding: 4px 8px; border-radius: 4px; }
-    .footer { text-align: center; margin-top: 30px; font-style: italic; color: #666; font-size: 13px; }
-</style>
-"@
+$CssContent = Get-Content -Path $CssTemplatePath -Raw
+$HtmlTemplate = Get-Content -Path $HtmlTemplatePath -Raw
+$StyleBlock = "<style>`n$CssContent`n</style>"
 
-$HtmlBody = "<h2>CIS BENCHMARK: AUTO-HEALING REPORT</h2>"
-$HtmlBody += "<div class='meta-info'><b>Time:</b> $DisplayTime &nbsp;|&nbsp; <b>OS:</b> $OSInfo</div>"
-$HtmlBody += "<div class='alert-box'>DETECTED AND ATTEMPTED TO RECOVER $($DriftedItems.Count) DRIFTED POLICIES</div>"
-$HtmlBody += "<table>"
-$HtmlBody += "<thead><tr><th>CIS ID</th><th>Description</th><th style='text-align: left;'>Before (Drifted Value)</th><th style='text-align: left;'>After (Restored Value)</th><th>Healing Status</th></tr></thead><tbody>"
+$TableRows = New-Object System.Collections.Generic.List[string]
 
 $HealedCount = 0
 $FailedCount = 0
@@ -97,11 +89,11 @@ $FailedCount = 0
 foreach ($PreItem in $DriftedItems) {
     # Tìm kiếm Item tương ứng ở bảng PostData
     $PostItem = $PostData | Where-Object { $_.CisId -eq $PreItem.CisId }
-    
+
     $HealingStatus = "FAILED"
     $StatusClass = "txt-failed"
-    
-    if ($PostItem.Status -eq "Pass") {
+
+    if ($null -ne $PostItem -and $PostItem.Status -eq "Pass") {
         $HealingStatus = "SUCCESS"
         $StatusClass = "txt-healed"
         $HealedCount++
@@ -109,18 +101,26 @@ foreach ($PreItem in $DriftedItems) {
         $FailedCount++
     }
 
-    $HtmlBody += "<tr>"
-    $HtmlBody += "<td class='col-id'>$($PreItem.CisId)</td>"
-    $HtmlBody += "<td>$($PreItem.Desc)</td>"
-    $HtmlBody += "<td class='txt-drift' style='font-weight: bold;'>$($PreItem.Current)</td>"
-    $HtmlBody += "<td style='font-weight: bold;'>$($PostItem.Current)</td>"
-    $HtmlBody += "<td class='col-status'><span class='$StatusClass'>$HealingStatus</span></td>"
-    $HtmlBody += "</tr>"
+    $AfterValue = if ($null -ne $PostItem) { $PostItem.Current } else { "N/A" }
+
+    $TableRows.Add("<tr><td class='col-id'>$($PreItem.CisId)</td><td>$($PreItem.Desc)</td><td class='txt-drift' style='font-weight: bold;'>$($PreItem.Current)</td><td style='font-weight: bold;'>$AfterValue</td><td class='col-status'><span class='$StatusClass'>$HealingStatus</span></td></tr>")
 }
 
-$HtmlBody += "</tbody></table>"
+$FinalHtml = $HtmlTemplate
+$Replacements = @{
+    "{{TITLE}}"        = "CIS Auto-Healing Report"
+    "{{STYLE_BLOCK}}"  = $StyleBlock
+    "{{REPORT_TITLE}}" = "CIS BENCHMARK: AUTO-HEALING REPORT"
+    "{{DISPLAY_TIME}}" = $DisplayTime
+    "{{OS_INFO}}"      = $OSInfo
+    "{{DRIFTED_COUNT}}" = [string]$DriftedItems.Count
+    "{{TABLE_ROWS}}"   = ($TableRows -join [Environment]::NewLine)
+}
 
-$FinalHtml = "<!DOCTYPE html><html><head><title>CIS Auto-Healing Report</title>$HtmlHeader</head><body>$HtmlBody</body></html>"
+foreach ($k in $Replacements.Keys) {
+    $FinalHtml = $FinalHtml.Replace($k, $Replacements[$k])
+}
+
 $ReportPath = "$HtmlDir\CIS-AutoHealing-$Timestamp.html"
 $FinalHtml | Out-File $ReportPath -Encoding UTF8
 

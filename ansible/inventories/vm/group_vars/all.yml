@@ -1,0 +1,38 @@
+# Global pipeline paths
+pipeline_local_root: "{{ playbook_dir }}/../../pipeline"
+pipeline_local_reports_root: "{{ pipeline_local_root }}/reports"
+
+pipeline_remote_root: 'C:\\CIS-Automation'
+pipeline_remote_script_root: '{{ pipeline_remote_root }}\\Scripts'
+pipeline_remote_reports_json: '{{ pipeline_remote_root }}\\Reports\\JSON'
+pipeline_remote_reports_html: '{{ pipeline_remote_root }}\\Reports\\HTML'
+
+# Central role/script mapping
+pipeline_role_matrix:
+  identity_access_control:
+    slug: identity-access-control
+    phase_script_dir: Identity-Access-Control
+    audit_script_name: Identity-Access-Control-Audit.ps1
+    remediation_script_name: Identity-Access-Control-Remediation.ps1
+    post_audit_script_name: Identity-Access-Control-Post-Audit.ps1
+
+  network_services_security:
+    slug: network-services-security
+    phase_script_dir: Network-Services-Security
+    audit_script_name: CIS-WinServer2022-Audit.ps1
+    remediation_script_name: CIS-WinServer2022-Remediation.ps1
+    post_audit_script_name: Network-Services-Security-Post-Audit.ps1
+
+  auditing_monitoring:
+    slug: auditing-monitoring
+    phase_script_dir: Auditing-Monitoring
+    audit_script_name: Auditing-Monitoring-Audit.ps1
+    remediation_script_name: Auditing-Monitoring-Remediation.ps1
+    post_audit_script_name: Auditing-Monitoring-Post-Audit.ps1
+
+  system_hardening_antimalware:
+    slug: system-hardening-antimalware
+    phase_script_dir: System-Hardening-Antimalware
+    audit_script_name: System-Hardening-Antimalware-Audit.ps1
+    remediation_script_name: System-Hardening-Antimalware-Remediation.ps1
+    post_audit_script_name: System-Hardening-Antimalware-Post-Audit.ps1

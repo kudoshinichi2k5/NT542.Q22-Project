@@ -1,0 +1,37 @@
+---
+- name: Ensure local report directory exists for role
+  ansible.builtin.file:
+    path: "{{ pipeline_local_reports_root }}/{{ inventory_hostname }}/{{ role_slug }}"
+    state: directory
+    mode: "0755"
+  delegate_to: localhost
+
+- name: Discover latest JSON report on Windows host
+  ansible.windows.win_shell: |
+    $latest = Get-ChildItem -Path '{{ pipeline_remote_reports_json }}' -Filter '*.json' -ErrorAction SilentlyContinue |
+      Sort-Object CreationTime -Descending |
+      Select-Object -First 1
+    if ($latest) { $latest.FullName }
+  register: latest_json
+
+- name: Fetch latest JSON report
+  ansible.builtin.fetch:
+    src: "{{ latest_json.stdout | trim }}"
+    dest: "{{ pipeline_local_reports_root }}/{{ inventory_hostname }}/{{ role_slug }}/"
+    flat: true
+  when: (latest_json.stdout | trim) != ''
+
+- name: Discover latest HTML report on Windows host
+  ansible.windows.win_shell: |
+    $latest = Get-ChildItem -Path '{{ pipeline_remote_reports_html }}' -Filter '*.html' -ErrorAction SilentlyContinue |
+      Sort-Object CreationTime -Descending |
+      Select-Object -First 1
+    if ($latest) { $latest.FullName }
+  register: latest_html
+
+- name: Fetch latest HTML report
+  ansible.builtin.fetch:
+    src: "{{ latest_html.stdout | trim }}"
+    dest: "{{ pipeline_local_reports_root }}/{{ inventory_hostname }}/{{ role_slug }}/"
+    flat: true
+  when: (latest_html.stdout | trim) != ''

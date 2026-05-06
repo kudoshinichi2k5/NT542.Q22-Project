@@ -1,0 +1,8 @@
+role_key: network_services_security
+role_cfg: "{{ pipeline_role_matrix[role_key] }}"
+role_slug: "{{ role_cfg.slug }}"
+role_phase_script_dir: "{{ role_cfg.phase_script_dir }}"
+role_audit_script_name: "{{ role_cfg.audit_script_name }}"
+role_remediation_script_name: "{{ role_cfg.remediation_script_name }}"
+role_post_audit_script_name: "{{ role_cfg.post_audit_script_name }}"
+role_remote_script_dir: "{{ pipeline_remote_script_root }}\\{{ role_phase_script_dir }}"

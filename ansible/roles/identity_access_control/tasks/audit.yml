@@ -1,0 +1,40 @@
+---
+- name: Set audit script source path
+  ansible.builtin.set_fact:
+    role_script_src: "{{ pipeline_local_root }}/audit/{{ role_phase_script_dir }}/{{ role_audit_script_name }}"
+    role_script_name: "{{ role_audit_script_name }}"
+
+- name: Check local audit script exists
+  ansible.builtin.stat:
+    path: "{{ role_script_src }}"
+  delegate_to: localhost
+  register: role_script_stat
+
+- name: Skip role audit when script is missing
+  ansible.builtin.debug:
+    msg: "Skip {{ role_slug }} audit: missing {{ role_script_src }}"
+  when: not role_script_stat.stat.exists
+
+- name: Ensure remote role script directory exists
+  ansible.windows.win_file:
+    path: "{{ role_remote_script_dir }}"
+    state: directory
+  when: role_script_stat.stat.exists
+
+- name: Copy audit script to Windows host
+  ansible.windows.win_copy:
+    src: "{{ role_script_src }}"
+    dest: "{{ role_remote_script_dir }}\\{{ role_script_name }}"
+  when: role_script_stat.stat.exists
+
+- name: Execute audit script
+  ansible.windows.win_shell: >-
+    powershell -ExecutionPolicy Bypass
+    -File "{{ role_remote_script_dir }}\\{{ role_script_name }}"
+  register: role_audit_exec
+  when: role_script_stat.stat.exists
+
+- name: Show audit output
+  ansible.builtin.debug:
+    var: role_audit_exec.stdout_lines
+  when: role_script_stat.stat.exists
