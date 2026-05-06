@@ -4,9 +4,22 @@
 # =========================================================================
 
 $BaseDir = "C:\CIS-Automation"
-$ScriptsDir = "$BaseDir\Scripts"
+$ProjectRoot = $PSScriptRoot
+$AuditScript = Join-Path $ProjectRoot "audit\Network-Services-Security\CIS-WinServer2022-Audit.ps1"
+$RemediationScript = Join-Path $ProjectRoot "remediation\Network-Services-Security\CIS-WinServer2022-Remediation.ps1"
 $JsonDir = "$BaseDir\Reports\JSON"
 $HtmlDir = "$BaseDir\Reports\HTML"
+
+$RequiredDirs = @(
+    "$BaseDir\Reports\JSON",
+    "$BaseDir\Reports\HTML",
+    "$BaseDir\Logs"
+)
+foreach ($dir in $RequiredDirs) {
+    if (-not (Test-Path $dir)) {
+        New-Item -Path $dir -ItemType Directory -Force | Out-Null
+    }
+}
 
 $StartTime = Get-Date
 $Timestamp = $StartTime.ToString("yyyyMMdd_HHmmss")
@@ -15,9 +28,16 @@ $OSInfo = (Get-CimInstance Win32_OperatingSystem).Caption
 
 Write-Host "[*] BẮT ĐẦU LUỒNG TỰ ĐỘNG HÓA PHỤC HỒI CẤU HÌNH..." -ForegroundColor Cyan
 
+if (-not (Test-Path $AuditScript)) {
+    throw "Audit script not found: $AuditScript"
+}
+if (-not (Test-Path $RemediationScript)) {
+    throw "Remediation script not found: $RemediationScript"
+}
+
 # 1. PRE-AUDIT (Quét hiện trạng)
 Write-Host "[1/5] Dang chay Pre-Audit..." -ForegroundColor Yellow
-Start-Process powershell.exe -ArgumentList "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$ScriptsDir\CIS-WinServer2022-Audit.ps1`"" -Wait
+Start-Process powershell.exe -ArgumentList "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$AuditScript`"" -Wait
 
 # Lấy file JSON mới nhất vừa tạo
 $PreAuditFile = Get-ChildItem -Path $JsonDir -Filter "*.json" | Sort-Object CreationTime -Descending | Select-Object -First 1
@@ -35,11 +55,11 @@ Write-Host "[2/5] Phat hien $($DriftedItems.Count) muc bi sai lech (Drifted)!" -
 
 # 3. AUTO-HEALING (Tiến hành khắc phục)
 Write-Host "[3/5] Dang kich hoat luong Tu dong phuc hoi (Remediation)..." -ForegroundColor Yellow
-Start-Process powershell.exe -ArgumentList "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$ScriptsDir\CIS-WinServer2022-Remediation.ps1`"" -Wait
+Start-Process powershell.exe -ArgumentList "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$RemediationScript`"" -Wait
 
 # 4. POST-AUDIT (Kiểm tra lại sau khi khắc phục)
 Write-Host "[4/5] Dang chay Post-Audit de xac minh..." -ForegroundColor Yellow
-Start-Process powershell.exe -ArgumentList "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$ScriptsDir\CIS-WinServer2022-Audit.ps1`"" -Wait
+Start-Process powershell.exe -ArgumentList "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$AuditScript`"" -Wait
 
 $PostAuditFile = Get-ChildItem -Path $JsonDir -Filter "*.json" | Sort-Object CreationTime -Descending | Select-Object -First 1
 $PostData = Get-Content $PostAuditFile.FullName -Raw | ConvertFrom-Json
