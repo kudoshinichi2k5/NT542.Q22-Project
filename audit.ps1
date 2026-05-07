@@ -59,14 +59,14 @@ $AdvancedAuditRules = @(
         CisId = "17.2.2"
         Description = "Audit Computer Account Management"
         Subcategory = "{0cce9236-69ae-11d9-bed3-505054503030}"
-        ExpectedValue = "Success and Failure"
+        ExpectedValue = "Success"
     },
     [PSCustomObject]@{
         Type = "AuditPol"
         CisId = "17.2.3"
         Description = "Audit Distribution Group Management"
         Subcategory = "{0cce9238-69ae-11d9-bed3-505054503030}"
-        ExpectedValue = "Success and Failure"
+        ExpectedValue = "Success"
     },
     [PSCustomObject]@{
         Type = "AuditPol"
@@ -204,7 +204,7 @@ $AdvancedAuditRules = @(
         CisId = "17.7.2"
         Description = "Audit Authentication Policy Change"
         Subcategory = "{0cce9230-69ae-11d9-bed3-505054503030}"
-        ExpectedValue = "Success "
+        ExpectedValue = "Success"
     },
     [PSCustomObject]@{
         Type = "AuditPol"
@@ -291,83 +291,89 @@ $EventLogServiceAudit = @(
     [PSCustomObject]@{
         Type = "Registry"
         CisId = "18.10.26.1.1"
-        Description = "Application: Control Event Log behavior
-when the log file reaches its maximum size"
-        Path = "HKLM\SOFTWARE\Policies\Microsoft\Windows\EventLog\Application"
+        Description = "Application: Control Event Log behavior when the log file reaches its maximum size"
+        Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\EventLog\Application"
         Key = "Retention"
+        PropertyType = "DWORD"
         CompareType = "Equals"
         ExpectedValue = 0
     },
     [PSCustomObject]@{
-        Type = "Registry"
-        CisId = "18.10.26.1.2"
-        Description = "Application: Specify the maximum log file
-size (KB)"
-        Path = "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\EventLog\Application"
-        Key = "MaxSize"
-        CompareType = "Equals"
-        ExpectedValue = 32768
-    },
-    [PSCustomObject]@{
-        Type = "Registry"
-        CisId = "18.10.26.2.1"
-        Description = "Security: Control Event Log behavior when
-the log file reaches its maximum size"
-        Path = "HKLM\SOFTWARE\Policies\Microsoft\Windows\EventLog\Security"
-        Key = "Retention"
-        CompareType = "Equals"
-        ExpectedValue = 0
-    },
-    [PSCustomObject]@{
-        Type = "Registry"
-        CisId = "18.10.26.2.2"
-        Description = "Security: Specify the maximum log file size
-(KB)"
-        Path = "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\EventLog\Security"
-        Key = "MaxSize"
-        CompareType = "Equals"
-        ExpectedValue = 196608
-    },
-    [PSCustomObject]@{
-        Type = "Registry"
-        CisId = "18.10.26.3.1"
-        Description = "Setup: Control Event Log behavior when the
-log file reaches its maximum size"
-        Path = "HKLM\SOFTWARE\Policies\Microsoft\Windows\EventLog\Setup"
-        Key = "Retention"
-        CompareType = "Equals"
-        ExpectedValue = 0
-    },
-    [PSCustomObject]@{
-        Type = "Registry"
-        CisId = "18.10.26.3.2"
-        Description = "Setup: Specify the maximum log file size (KB)"
-        Path = "HKLM\SOFTWARE\Policies\Microsoft\Windows\EventLog\Setup"
-        Key = "MaxSize"
-        CompareType = "Equals or Greater"
-        ExpectedValue = 32768
-    },
-    [PSCustomObject]@{
-        Type = "Registry"
-        CisId = "18.10.26.4.1"
-        Description = "System: Control Event Log behavior when
-the log file reaches its maximum size"
-        Path = "HKLM\SOFTWARE\Policies\Microsoft\Windows\EventLog\System"
-        Key = "Retention"
-        CompareType = "Equals"
-        ExpectedValue = 0
-    },
+    Type = "Registry"
+    CisId = "18.10.26.1.2"
+    Description = "Application: Specify the maximum log file size (KB)"
+    Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\EventLog\Application"
+    Key = "MaxSize"
+    PropertyType = "DWORD"
+    CompareType = "Equals"
+    ExpectedValue = 32768
+},
 
-    [PSCustomObject]@{
-        Type = "Registry"
-        CisId = "18.10.26.4.2"
-        Description = "System: Specify the maximum log file size
-(KB)"
-        Path = "HKLM\SOFTWARE\Policies\Microsoft\Windows\EventLog\System"
-        Key = "MaxSize"
-        CompareType = "Equals or Greater"
-        ExpectedValue = 32768
-    }
+[PSCustomObject]@{
+    Type = "Registry"
+    CisId = "18.10.26.2.1"
+    Description = "Security: Control Event Log behavior when the log file reaches its maximum size"
+    Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\EventLog\Security"
+    Key = "Retention"
+    PropertyType = "DWORD"
+    CompareType = "Equals"
+    ExpectedValue = 0
+},
+
+[PSCustomObject]@{
+    Type = "Registry"
+    CisId = "18.10.26.2.2"
+    Description = "Security: Specify the maximum log file size (KB)"
+    Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\EventLog\Security"
+    Key = "MaxSize"
+    PropertyType = "DWORD"
+    CompareType = "Equals"
+    ExpectedValue = 196608
+},
+
+[PSCustomObject]@{
+    Type = "Registry"
+    CisId = "18.10.26.3.1"
+    Description = "Setup: Control Event Log behavior when the log file reaches its maximum size"
+    Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\EventLog\Setup"
+    Key = "Retention"
+    PropertyType = "DWORD"
+    CompareType = "Equals"
+    ExpectedValue = 0
+},
+
+[PSCustomObject]@{
+    Type = "Registry"
+    CisId = "18.10.26.3.2"
+    Description = "Setup: Specify the maximum log file size (KB)"
+    Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\EventLog\Setup"
+    Key = "MaxSize"
+    PropertyType = "DWORD"
+    CompareType = "EqualsorGreater"
+    ExpectedValue = 32768
+},
+
+[PSCustomObject]@{
+    Type = "Registry"
+    CisId = "18.10.26.4.1"
+    Description = "System: Control Event Log behavior when the log file reaches its maximum size"
+    Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\EventLog\System"
+    Key = "Retention"
+    PropertyType = "DWORD"
+    CompareType = "Equals"
+    ExpectedValue = 0
+},
+
+[PSCustomObject]@{
+    Type = "Registry"
+    CisId = "18.10.26.4.2"
+    Description = "System: Specify the maximum log file size (KB)"
+    Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\EventLog\System"
+    Key = "MaxSize"
+    PropertyType = "DWORD"
+    CompareType = "EqualsorGreater"
+    ExpectedValue = 32768
+}
 
 )
 $Rules = $AuditRules + $AdvancedAuditRules + $EventLogServiceAudit
@@ -393,8 +399,7 @@ foreach ($Rule in $Rules) {
                         $Status = "PASS"
                     }
                 }
-
-                "Equals or Greater" {
+                "EqualsOrGreater" {
                     if ($CurrentValue -ge $Rule.ExpectedValue) {
                         $Status = "PASS"
                     }
@@ -434,5 +439,9 @@ foreach ($Rule in $Rules) {
 # =========================================
 # SHOW RESULT
 # =========================================
-
-$Results | Format-Table -Wrap
+Write-Host "`n====================="
+Write-Host "AUDIT COMPLETE"
+Write-Host "Total Rules: $($Rules.Count)"
+Write-Host "Total Results: $($Results.Count)"
+Write-Host "====================="
+$Results | Format-Table CIS_ID,Type,Expected,Status -AutoSize
