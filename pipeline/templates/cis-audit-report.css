@@ -1,0 +1,19 @@
+body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; font-size: 13px; margin: 20px; background-color: #f9f9f9; }
+h2 { color: #003366; }
+.meta-info { margin-bottom: 20px; color: #555; }
+table { width: 100%; border-collapse: collapse; border: 1px solid #ccc; background-color: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+th { background-color: #004080; color: white; border: 1px solid #ccc; padding: 8px; text-align: center; }
+td { border: 1px solid #ccc; padding: 6px; }
+.col-desc { text-align: left; }
+.col-num { text-align: center; width: 60px; }
+.row-group { background-color: #dbe4f0; font-weight: bold; cursor: pointer; color: #003366; }
+.row-subgroup { background-color: #f0f4f8; cursor: pointer; color: #333; }
+.row-item { display: none; }
+
+/* CSS Tối ưu hiển thị Pass/Fail */
+.txt-pass { color: #28a745; font-weight: bold; }
+.txt-fail { color: #dc3545; font-weight: bold; }
+.txt-neutral { color: #6c757d; } /* Màu xám cho các số 0 */
+
+.footer-row { background-color: #cce0ff; font-weight: bold; color: #003366; }
+.row-group:hover, .row-subgroup:hover { background-color: #cce0ff; }

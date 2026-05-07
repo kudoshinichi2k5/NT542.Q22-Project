@@ -1,0 +1,15 @@
+# Use WinRM as the connection method for Windows hosts.
+ansible_connection: winrm
+# Default WinRM HTTP port (5985). Use 5986 when WinRM HTTPS is configured.
+ansible_port: 5985
+# Authentication transport for WinRM (NTLM works well in workgroup/lab setups).
+ansible_winrm_transport: ntlm
+# Ignore TLS certificate validation (safe for lab/self-signed cert environments).
+ansible_winrm_server_cert_validation: ignore
+# Per-operation timeout (seconds) for WinRM commands.
+ansible_winrm_operation_timeout_sec: 60
+# Read timeout (seconds), should be higher than operation timeout.
+ansible_winrm_read_timeout_sec: 90
+
+ansible_user: .\\Administrator
+ansible_password: CHANGE_ME

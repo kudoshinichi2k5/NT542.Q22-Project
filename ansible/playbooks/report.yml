@@ -1,0 +1,17 @@
+---
+- name: Phase 4 - Report Collection
+  hosts: windows
+  gather_facts: false
+  tasks:
+    - ansible.builtin.include_role:
+        name: identity_access_control
+        tasks_from: report.yml
+    - ansible.builtin.include_role:
+        name: network_services_security
+        tasks_from: report.yml
+    - ansible.builtin.include_role:
+        name: auditing_monitoring
+        tasks_from: report.yml
+    - ansible.builtin.include_role:
+        name: system_hardening_antimalware
+        tasks_from: report.yml

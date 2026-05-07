@@ -1,0 +1,5 @@
+---
+- import_playbook: audit.yml
+- import_playbook: remediation.yml
+- import_playbook: post_audit.yml
+- import_playbook: report.yml
