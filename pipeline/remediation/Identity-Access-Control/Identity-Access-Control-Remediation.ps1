@@ -10,7 +10,8 @@ Start-Transcript -Path $LogFile -Force
 
 Clear-Host
 Write-Host "===============================================================================" -ForegroundColor Green
-Write-Host " BAT DAU KHAC PHUC (REMEDIATION) - MODULE IDENTITY & ACCESS" -ForegroundColor White -BackgroundColor DarkGreen
+Write-Host " BAT DAU KHAC PHUC (REMEDIATION) THEO CHUAN CIS BENCHMARK V5.0.0" -ForegroundColor White -BackgroundColor DarkGreen
+Write-Host " Module            : Identity & Access Control" -ForegroundColor Green
 Write-Host " Thoi gian bat dau : $TimestampDisplay" -ForegroundColor Green
 Write-Host "===============================================================================`n" -ForegroundColor Green
 

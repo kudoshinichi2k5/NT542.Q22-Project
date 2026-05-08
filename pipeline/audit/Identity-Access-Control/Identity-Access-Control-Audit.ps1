@@ -1,3 +1,4 @@
+# 1. SETUP DIRECTORIES & TIMESTAMPS
 $BaseDir = "C:\CIS-Automation"
 $Paths = @("$BaseDir\Scripts", "$BaseDir\Reports\HTML", "$BaseDir\Reports\JSON", "$BaseDir\Logs")
 foreach ($p in $Paths) { if (-not (Test-Path $p)) { New-Item -ItemType Directory -Force -Path $p | Out-Null } }
@@ -7,6 +8,13 @@ $TimestampFile = $StartTime.ToString("yyyyMMdd_HHmmss")
 $TimestampDisplay = $StartTime.ToString("dd/MM/yyyy HH:mm:ss")
 $OSInfo = (Get-CimInstance Win32_OperatingSystem).Caption
 
+# Khớp cấu trúc tìm file template giống với Network Script
+$PipelineRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+$TemplateDir = Join-Path $PipelineRoot "templates"
+$CssTemplatePath = Join-Path $TemplateDir "cis-audit-report.css"
+$HtmlTemplatePath = Join-Path $TemplateDir "cis-audit-report.html.tpl"
+
+# 2. CONSOLE HEADER
 Clear-Host
 Write-Host "===============================================================================" -ForegroundColor Cyan
 Write-Host " BAT DAU QUET (AUDIT) - MODULE IDENTITY & ACCESS CONTROL (FULL)" -ForegroundColor White -BackgroundColor DarkBlue
@@ -14,12 +22,12 @@ Write-Host " Thoi gian bat dau : $TimestampDisplay" -ForegroundColor Cyan
 Write-Host " He dieu hanh      : $OSInfo" -ForegroundColor Cyan
 Write-Host "===============================================================================`n" -ForegroundColor Cyan
 
-# Xuất cấu hình bảo mật cục bộ ra file tạm
+# Xuất cấu hình bảo mật cục bộ ra file tạm để phục vụ cho Module Identity
 $SecPolPath = "$env:TEMP\secpol_audit.cfg"
 secedit /export /cfg $SecPolPath /quiet | Out-Null
 $SecPol = Get-Content $SecPolPath
 
-# 1. DEFINE AUDIT RULES (Full Part 1, 2.2, 2.3.1)
+# 3. DEFINE AUDIT RULES
 $AuditRules = @(
     # --- PART 1.1: PASSWORD POLICY ---
     [PSCustomObject]@{ GrpId="1"; GrpName="Account Policies"; SubId="1.1"; SubName="Password Policy"; CisId="1.1.1"; Desc="Ensure 'Enforce password history' is set to '24 or more password(s)'"; Expected="24"; CheckType="History" }
@@ -95,7 +103,7 @@ Function Get-SecPolValue {
     return "Unknown"
 }
 
-# 2. THỰC HIỆN KIỂM TRA (AUDIT LOGIC ĐỘNG)
+# 4. THỰC HIỆN KIỂM TRA (AUDIT LOGIC)
 foreach ($Rule in $AuditRules) {
     $status = "Fail"
     $strVal = "Unknown"
@@ -159,43 +167,17 @@ foreach ($Rule in $AuditRules) {
 
 Remove-Item -Path $SecPolPath -Force -ErrorAction SilentlyContinue
 
-# 3. XUẤT RA JSON
+# --- XUẤT RA JSON ---
 $Results | ConvertTo-Json -Depth 4 | Out-File "$BaseDir\Reports\JSON\Identity-Audit-$TimestampFile.json" -Encoding UTF8
 
-# 4. TẠO BÁO CÁO HTML GIAO DIỆN CIS-CAT
-$HtmlHeader = @"
-<style>
-    body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; font-size: 13px; margin: 20px; background-color: #f9f9f9; }
-    h2 { color: #003366; }
-    .meta-info { margin-bottom: 20px; color: #555; }
-    table { width: 100%; border-collapse: collapse; border: 1px solid #ccc; background-color: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-    th { background-color: #004080; color: white; border: 1px solid #ccc; padding: 8px; text-align: center; }
-    td { border: 1px solid #ccc; padding: 6px; }
-    .col-desc { text-align: left; }
-    .col-num { text-align: center; width: 60px; }
-    .row-group { background-color: #dbe4f0; font-weight: bold; cursor: pointer; color: #003366; }
-    .row-subgroup { background-color: #f0f4f8; cursor: pointer; color: #333; }
-    .row-item { display: none; }
-    .txt-pass { color: #28a745; font-weight: bold; }
-    .txt-fail { color: #dc3545; font-weight: bold; }
-    .txt-neutral { color: #6c757d; }
-    .footer-row { background-color: #cce0ff; font-weight: bold; color: #003366; }
-    .row-group:hover, .row-subgroup:hover { background-color: #cce0ff; }
-</style>
-<script>
-    function toggle(targetClass) {
-        var elements = document.getElementsByClassName(targetClass);
-        for(var i=0; i<elements.length; i++) {
-            elements[i].style.display = elements[i].style.display === 'table-row' ? 'none' : 'table-row';
-        }
-    }
-</script>
-"@
+# --- TẠO BÁO CÁO HTML (DÙNG TEMPLATE) ---
+if (-not (Test-Path $CssTemplatePath)) { throw "CSS template not found: $CssTemplatePath" }
+if (-not (Test-Path $HtmlTemplatePath)) { throw "HTML template not found: $HtmlTemplatePath" }
 
-$HtmlBody = "<h2>CIS Audit Report - Identity & Access Control (Full)</h2>"
-$HtmlBody += "<div class='meta-info'><b>Thoi gian quet:</b> $TimestampDisplay <br/> <b>He dieu hanh:</b> $OSInfo </div>"
-$HtmlBody += "<table><tr><th rowspan='2'>Description</th><th colspan='2'>Tests</th><th colspan='2'>Scoring</th></tr>"
-$HtmlBody += "<tr><th>Pass</th><th>Fail</th><th>Max</th><th>Percent</th></tr>"
+$CssContent = Get-Content -Path $CssTemplatePath -Raw
+$HtmlTemplate = Get-Content -Path $HtmlTemplatePath -Raw
+$StyleBlock = "<style>`n$CssContent`n</style>"
+$TableRows = New-Object System.Collections.Generic.List[string]
 
 $TotalPass = 0; $TotalFail = 0
 $Groups = $Results | Group-Object GrpId
@@ -213,10 +195,7 @@ foreach ($Grp in $Groups) {
     $cGrpPass = if ($GrpPass -gt 0) { "txt-pass" } else { "txt-neutral" }
     $cGrpFail = if ($GrpFail -gt 0) { "txt-fail" } else { "txt-neutral" }
 
-    $HtmlBody += "<tr class='row-group' onclick=`"toggle('$clsGrp')`">"
-    $HtmlBody += "<td class='col-desc'>$($Grp.Name) $GrpName</td>"
-    $HtmlBody += "<td class='col-num $cGrpPass'>$GrpPass</td><td class='col-num $cGrpFail'>$GrpFail</td>"
-    $HtmlBody += "<td class='col-num'>$GrpMax.0</td><td class='col-num'>$GrpPct%</td></tr>"
+    $TableRows.Add("<tr class='row-group' onclick=`"toggle('$clsGrp')`"><td class='col-desc'>$($Grp.Name) $GrpName</td><td class='col-num $cGrpPass'>$GrpPass</td><td class='col-num $cGrpFail'>$GrpFail</td><td class='col-num'>$GrpMax.0</td><td class='col-num'>$GrpPct%</td></tr>")
 
     $SubGroups = $Grp.Group | Group-Object SubId
     foreach ($Sub in $SubGroups) {
@@ -230,10 +209,7 @@ foreach ($Grp in $Groups) {
         $cSubPass = if ($SubPass -gt 0) { "txt-pass" } else { "txt-neutral" }
         $cSubFail = if ($SubFail -gt 0) { "txt-fail" } else { "txt-neutral" }
 
-        $HtmlBody += "<tr class='row-subgroup $clsGrp' style='display:none;' onclick=`"toggle('$clsSub')`">"
-        $HtmlBody += "<td class='col-desc'>&nbsp;&nbsp;&nbsp;&nbsp;$($Sub.Name) $SubName</td>"
-        $HtmlBody += "<td class='col-num $cSubPass'>$SubPass</td><td class='col-num $cSubFail'>$SubFail</td>"
-        $HtmlBody += "<td class='col-num'>$SubMax.0</td><td class='col-num'>$SubPct%</td></tr>"
+        $TableRows.Add("<tr class='row-subgroup $clsGrp' style='display:none;' onclick=`"toggle('$clsSub')`"><td class='col-desc'>&nbsp;&nbsp;&nbsp;&nbsp;$($Sub.Name) $SubName</td><td class='col-num $cSubPass'>$SubPass</td><td class='col-num $cSubFail'>$SubFail</td><td class='col-num'>$SubMax.0</td><td class='col-num'>$SubPct%</td></tr>")
 
         foreach ($Item in $Sub.Group) {
             $iPass = if($Item.Status -eq "Pass"){1}else{0}
@@ -243,22 +219,29 @@ foreach ($Grp in $Groups) {
             $cItemPass = if($iPass -eq 1){"txt-pass"}else{"txt-neutral"}
             $cItemFail = if($iFail -eq 1){"txt-fail"}else{"txt-neutral"}
             
-            $HtmlBody += "<tr class='row-item $clsGrp $clsSub'>"
-            $HtmlBody += "<td class='col-desc' style='color:#555;'>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;$($Item.CisId) $($Item.Desc)</td>"
-            $HtmlBody += "<td class='col-num $cItemPass'>$iPass</td><td class='col-num $cItemFail'>$iFail</td>"
-            $HtmlBody += "<td class='col-num'>1.0</td><td class='col-num'>$iPct%</td></tr>"
+            $TableRows.Add("<tr class='row-item $clsGrp $clsSub'><td class='col-desc' style='color:#555;'>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;$($Item.CisId) $($Item.Desc)</td><td class='col-num $cItemPass'>$iPass</td><td class='col-num $cItemFail'>$iFail</td><td class='col-num'>1.0</td><td class='col-num'>$iPct%</td></tr>")
         }
     }
 }
 
 $GrandMax = $TotalPass + $TotalFail
 $GrandPct = if($GrandMax -gt 0) { [math]::Round(($TotalPass/$GrandMax)*100) } else { 0 }
-$HtmlBody += "<tr class='footer-row'><td class='col-desc' style='text-align:right'>Total</td>"
-$HtmlBody += "<td class='col-num txt-pass'>$TotalPass</td><td class='col-num txt-fail'>$TotalFail</td>"
-$HtmlBody += "<td class='col-num'>$GrandMax.0</td><td class='col-num'>$GrandPct%</td></tr>"
-$HtmlBody += "</table>"
+$TableRows.Add("<tr class='footer-row'><td class='col-desc' style='text-align:right'>Total</td><td class='col-num txt-pass'>$TotalPass</td><td class='col-num txt-fail'>$TotalFail</td><td class='col-num'>$GrandMax.0</td><td class='col-num'>$GrandPct%</td></tr>")
 
-$FinalHtml = "<!DOCTYPE html><html><head><title>CIS Audit Report</title>$HtmlHeader</head><body>$HtmlBody</body></html>"
+$FinalHtml = $HtmlTemplate
+$Replacements = @{
+    "{{TITLE}}"        = "CIS Audit Report - Identity & Access"
+    "{{STYLE_BLOCK}}"  = $StyleBlock
+    "{{REPORT_TITLE}}" = "CIS Audit Report - Identity & Access Control (Full)"
+    "{{DISPLAY_TIME}}" = $TimestampDisplay
+    "{{OS_INFO}}"      = $OSInfo
+    "{{TABLE_ROWS}}"   = ($TableRows -join [Environment]::NewLine)
+}
+
+foreach ($k in $Replacements.Keys) {
+    $FinalHtml = $FinalHtml.Replace($k, $Replacements[$k])
+}
+
 $HtmlPath = "$BaseDir\Reports\HTML\Identity-Audit-$TimestampFile.html"
 $FinalHtml | Out-File $HtmlPath -Encoding UTF8
 
