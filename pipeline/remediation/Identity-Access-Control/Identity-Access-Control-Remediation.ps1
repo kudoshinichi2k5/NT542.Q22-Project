@@ -1,3 +1,11 @@
+$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if (-not $isAdmin) {
+    Write-Warning "VUI LONG CHAY SCRIPT NAY BANG QUYEN ADMINISTRATOR (Run as Administrator)!"
+    Start-Sleep -Seconds 5
+    exit
+}
+
+
 $BaseDir = "C:\CIS-Automation"
 if (-not (Test-Path "$BaseDir\Logs")) { New-Item -ItemType Directory -Force -Path "$BaseDir\Logs" | Out-Null }
 
@@ -6,8 +14,17 @@ $TimestampFile = $StartTime.ToString("yyyyMMdd_HHmmss")
 $TimestampDisplay = $StartTime.ToString("dd/MM/yyyy HH:mm:ss")
 $LogFile = "$BaseDir\Logs\Identity-Remediation-$TimestampFile.log"
 
-$NewAdminName = "LocalAdmin_Renamed" 
-$NewGuestName = "LocalGuest_Renamed" 
+
+$NewAdminName = ""
+while ([string]::IsNullOrWhiteSpace($NewAdminName)) {
+    $NewAdminName = Read-Host "Nhập tên mới cho tài khoản Administrator (Khong duoc de trong)"
+}
+
+$NewGuestName = ""
+while ([string]::IsNullOrWhiteSpace($NewGuestName)) {
+    $NewGuestName = Read-Host "Nhập tên mới cho tài khoản Guest (Khong duoc de trong)"
+}
+
 
 Start-Transcript -Path $LogFile -Force
 
@@ -127,7 +144,6 @@ foreach ($Group in $GroupedRules) {
                 "BlankPassword" { Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Lsa" -Name "LimitBlankPasswordUse" -Value 1 -Type DWord -Force; Write-Host "[$TimeNow] [ PASS ] $($Rule.CisId) -> Bật Limit local account use of blank passwords" -ForegroundColor Green }
                 
                 "RenameAdmin" {
-                    # Lấy tài khoản dựa trên SID kết thúc bằng 500 (Administrator mặc định)
                     $AdminAccount = Get-LocalUser | Where-Object { $_.SID -like "S-1-5-21-*-500" }
                     if ($AdminAccount.Name -eq "Administrator") {
                         Rename-LocalUser -Name "Administrator" -NewName $NewAdminName
