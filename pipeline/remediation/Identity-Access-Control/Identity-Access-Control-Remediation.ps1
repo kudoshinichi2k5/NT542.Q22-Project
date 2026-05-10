@@ -1,3 +1,11 @@
+$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if (-not $isAdmin) {
+    Write-Warning "VUI LONG CHAY SCRIPT NAY BANG QUYEN ADMINISTRATOR (Run as Administrator)!"
+    Start-Sleep -Seconds 5
+    exit
+}
+
+
 $BaseDir = "C:\CIS-Automation"
 if (-not (Test-Path "$BaseDir\Logs")) { New-Item -ItemType Directory -Force -Path "$BaseDir\Logs" | Out-Null }
 
@@ -5,6 +13,18 @@ $StartTime = Get-Date
 $TimestampFile = $StartTime.ToString("yyyyMMdd_HHmmss")
 $TimestampDisplay = $StartTime.ToString("dd/MM/yyyy HH:mm:ss")
 $LogFile = "$BaseDir\Logs\Identity-Remediation-$TimestampFile.log"
+
+
+$NewAdminName = ""
+while ([string]::IsNullOrWhiteSpace($NewAdminName)) {
+    $NewAdminName = Read-Host "Nhập tên mới cho tài khoản Administrator (Khong duoc de trong)"
+}
+
+$NewGuestName = ""
+while ([string]::IsNullOrWhiteSpace($NewGuestName)) {
+    $NewGuestName = Read-Host "Nhập tên mới cho tài khoản Guest (Khong duoc de trong)"
+}
+
 
 Start-Transcript -Path $LogFile -Force
 
@@ -76,7 +96,6 @@ $IdentityRules = @(
     [PSCustomObject]@{ GrpName="Local Policies"; CisId="2.3.1.4"; CheckType="RenameGuest" }
 )
 
-# Hàm hỗ trợ sửa Security Options qua .inf file
 Function Set-LocalSecurityPolicy {
     param([string]$Setting, [string]$Value)
     $InfPath = "$env:TEMP\secpol_fix.inf"
@@ -85,7 +104,6 @@ Function Set-LocalSecurityPolicy {
     Remove-Item -Path $InfPath -Force -ErrorAction SilentlyContinue
 }
 
-# Hàm hỗ trợ sửa User Rights Assignment qua .inf file
 Function Set-UserRightPolicy {
     param([string]$Privilege, [string]$Accounts)
     $InfPath = "$env:TEMP\ur_fix.inf"
@@ -124,19 +142,20 @@ foreach ($Group in $GroupedRules) {
 
                 "GuestStatus" { Disable-LocalUser -Name "Guest" -ErrorAction SilentlyContinue; Write-Host "[$TimeNow] [ PASS ] $($Rule.CisId) -> Vô hiệu hóa tài khoản Guest" -ForegroundColor Green }
                 "BlankPassword" { Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Lsa" -Name "LimitBlankPasswordUse" -Value 1 -Type DWord -Force; Write-Host "[$TimeNow] [ PASS ] $($Rule.CisId) -> Bật Limit local account use of blank passwords" -ForegroundColor Green }
+                
                 "RenameAdmin" {
                     $AdminAccount = Get-LocalUser | Where-Object { $_.SID -like "S-1-5-21-*-500" }
                     if ($AdminAccount.Name -eq "Administrator") {
-                        Rename-LocalUser -Name "Administrator" -NewName "SysAdmin_Hardened"
-                        Write-Host "[$TimeNow] [ PASS ] $($Rule.CisId) -> Đổi tên tài khoản Administrator thành SysAdmin_Hardened" -ForegroundColor Green
-                    } else { Write-Host "[$TimeNow] [ PASS ] $($Rule.CisId) -> Administrator đã được đổi tên" -ForegroundColor Green }
+                        Rename-LocalUser -Name "Administrator" -NewName $NewAdminName
+                        Write-Host "[$TimeNow] [ PASS ] $($Rule.CisId) -> Đã đổi tên Administrator thành '$NewAdminName'" -ForegroundColor Green
+                    } else { Write-Host "[$TimeNow] [ PASS ] $($Rule.CisId) -> Tài khoản Administrator (SID 500) đã mang tên khác mặc định" -ForegroundColor Green }
                 }
                 "RenameGuest" {
                     $GuestAccount = Get-LocalUser | Where-Object { $_.SID -like "S-1-5-21-*-501" }
                     if ($GuestAccount.Name -eq "Guest") {
-                        Rename-LocalUser -Name "Guest" -NewName "Guest_Hardened"
-                        Write-Host "[$TimeNow] [ PASS ] $($Rule.CisId) -> Đổi tên tài khoản Guest thành Guest_Hardened" -ForegroundColor Green
-                    } else { Write-Host "[$TimeNow] [ PASS ] $($Rule.CisId) -> Guest đã được đổi tên" -ForegroundColor Green }
+                        Rename-LocalUser -Name "Guest" -NewName $NewGuestName
+                        Write-Host "[$TimeNow] [ PASS ] $($Rule.CisId) -> Đã đổi tên Guest thành '$NewGuestName'" -ForegroundColor Green
+                    } else { Write-Host "[$TimeNow] [ PASS ] $($Rule.CisId) -> Tài khoản Guest (SID 501) đã mang tên khác mặc định" -ForegroundColor Green }
                 }
             }
         } catch {
