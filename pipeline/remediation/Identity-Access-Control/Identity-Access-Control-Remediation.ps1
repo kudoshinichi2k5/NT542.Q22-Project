@@ -1,10 +1,54 @@
+param(
+    [string]$AdminAccountNewName = "",
+    [string]$GuestAccountNewName = "",
+    [string]$AdminAccountPassword = ""
+)
+
+function Resolve-TargetAccountName {
+    param(
+        [string]$ProvidedName,
+        [string]$Prompt,
+        [string]$DefaultName,
+        [string[]]$ReservedNames = @()
+    )
+
+    $Candidate = $ProvidedName
+
+    if ([string]::IsNullOrWhiteSpace($Candidate) -and [Environment]::UserInteractive) {
+        while ([string]::IsNullOrWhiteSpace($Candidate)) {
+            $Candidate = Read-Host $Prompt
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($Candidate)) {
+        throw "Missing required account name for '$DefaultName'. Provide it as a script parameter."
+    }
+
+    $Candidate = $Candidate.Trim()
+
+    if ($Candidate -match '[\\/:*?"<>|]') {
+        throw "Account name '$Candidate' contains invalid characters."
+    }
+
+    if ($Candidate.Equals($DefaultName, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Account name '$Candidate' must differ from the default name '$DefaultName'."
+    }
+
+    foreach ($ReservedName in $ReservedNames) {
+        if (-not [string]::IsNullOrWhiteSpace($ReservedName) -and $Candidate.Equals($ReservedName, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Account name '$Candidate' conflicts with reserved name '$ReservedName'."
+        }
+    }
+
+    return $Candidate
+}
+
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin) {
     Write-Warning "VUI LONG CHAY SCRIPT NAY BANG QUYEN ADMINISTRATOR (Run as Administrator)!"
     Start-Sleep -Seconds 5
     exit
 }
-
 
 $BaseDir = "C:\CIS-Automation"
 if (-not (Test-Path "$BaseDir\Logs")) { New-Item -ItemType Directory -Force -Path "$BaseDir\Logs" | Out-Null }
@@ -14,17 +58,16 @@ $TimestampFile = $StartTime.ToString("yyyyMMdd_HHmmss")
 $TimestampDisplay = $StartTime.ToString("dd/MM/yyyy HH:mm:ss")
 $LogFile = "$BaseDir\Logs\Identity-Remediation-$TimestampFile.log"
 
+$NewAdminName = Resolve-TargetAccountName -ProvidedName $AdminAccountNewName -Prompt "Nhap ten moi cho tai khoan Administrator (Khong duoc de trong)" -DefaultName "Administrator" -ReservedNames @("Guest", "Guest_Hardened")
+$NewGuestName = Resolve-TargetAccountName -ProvidedName $GuestAccountNewName -Prompt "Nhap ten moi cho tai khoan Guest (Khong duoc de trong)" -DefaultName "Guest" -ReservedNames @("Administrator", $NewAdminName)
 
-$NewAdminName = ""
-while ([string]::IsNullOrWhiteSpace($NewAdminName)) {
-    $NewAdminName = Read-Host "Nhập tên mới cho tài khoản Administrator (Khong duoc de trong)"
+if (-not [string]::IsNullOrWhiteSpace($AdminAccountPassword)) {
+    try {
+        $SecureAdminPassword = ConvertTo-SecureString -String $AdminAccountPassword -AsPlainText -Force
+    } catch {
+        throw "Khong the chuyen doi mat khau quan tri duoc quan ly sang SecureString. $($_.Exception.Message)"
+    }
 }
-
-$NewGuestName = ""
-while ([string]::IsNullOrWhiteSpace($NewGuestName)) {
-    $NewGuestName = Read-Host "Nhập tên mới cho tài khoản Guest (Khong duoc de trong)"
-}
-
 
 Start-Transcript -Path $LogFile -Force
 
@@ -145,10 +188,22 @@ foreach ($Group in $GroupedRules) {
                 
                 "RenameAdmin" {
                     $AdminAccount = Get-LocalUser | Where-Object { $_.SID -like "S-1-5-21-*-500" }
+                    $ManagedAdminName = $AdminAccount.Name
+
                     if ($AdminAccount.Name -eq "Administrator") {
                         Rename-LocalUser -Name "Administrator" -NewName $NewAdminName
+                        $ManagedAdminName = $NewAdminName
                         Write-Host "[$TimeNow] [ PASS ] $($Rule.CisId) -> Đã đổi tên Administrator thành '$NewAdminName'" -ForegroundColor Green
-                    } else { Write-Host "[$TimeNow] [ PASS ] $($Rule.CisId) -> Tài khoản Administrator (SID 500) đã mang tên khác mặc định" -ForegroundColor Green }
+                    } else {
+                        Write-Host "[$TimeNow] [ PASS ] $($Rule.CisId) -> Tài khoản Administrator (SID 500) đã mang tên khác mặc định" -ForegroundColor Green
+                    }
+
+                    if (-not [string]::IsNullOrWhiteSpace($AdminAccountPassword)) {
+                        Set-LocalUser -Name $ManagedAdminName -Password $SecureAdminPassword
+                        Write-Host "[$TimeNow] [ PASS ] $($Rule.CisId) -> Đã đặt mật khẩu quản trị đạt chuẩn cho '$ManagedAdminName'" -ForegroundColor Green
+                    } else {
+                        Write-Host "[$TimeNow] [ WARN ] $($Rule.CisId) -> Chưa cấu hình mật khẩu quản trị được quản lý; giữ nguyên mật khẩu hiện tại" -ForegroundColor Yellow
+                    }
                 }
                 "RenameGuest" {
                     $GuestAccount = Get-LocalUser | Where-Object { $_.SID -like "S-1-5-21-*-501" }
