@@ -38,53 +38,185 @@ flowchart LR
 | **Phú Thuận** | Auditing & Monitoring | `Mục 17 - Advanced Audit Policy Configuration`<br>`Mục 18.10.26 - Event Log Service`<br>`Mục 2.3.2 - Audit (Security Options)` | Thiếu bằng chứng điều tra, không phát hiện xâm nhập |
 | **Tiến Phát** | System Hardening & Antimalware | `Mục 18.10.42 - Microsoft Defender Antivirus`<br>`Mục 18.4 & 18.5 - MS Security Guide & MSS (Legacy)`<br>`Mục 2.3.17 - User Account Control (UAC)`<br>`Mục 18.9.5 - Device Guard`<br>`Mục 18.9.27 - Local Security Authority (LSA)`<br>`Mục 18.10.8 - AutoPlay Policies`<br>`Mục 18.9.13 - Early Launch Antimalware (ELAM)`<br>`Mục 18.10.77 - Windows Defender SmartScreen` | Mã độc thực thi trái phép, đánh cắp chứng thực cục bộ |
 
-## 3. Triển khai các công cụ
+## 3. Triển khai môi trường thực nghiệm
 
-### 3.1 Wazuh
-Wazuh được triển khai như một nền tảng giám sát an ninh tập trung cho hệ thống Windows Server trong lab. Trong kiến trúc của nhóm, `log01` đóng vai trò Wazuh manager/dashboard, còn các máy Windows như `dc01` và `member01` được cài Wazuh agent để gửi log, trạng thái hệ thống và kết quả đánh giá bảo mật về trung tâm.
+Hạ tầng lab được triển khai bằng Terraform theo 2 stack tách biệt:
+- `kvm/terraform/windows`: tạo 3 máy Windows (`dc01`, `member01`, `fs01`) và network dùng chung `windows-lab-net`
+- `kvm/terraform/linux/wazuh`: tạo máy Linux `log01` chạy Wazuh và nối vào cùng network
 
-Việc tích hợp Wazuh giúp nhóm không chỉ dừng ở bước hardening theo CIS, mà còn có thêm một lớp giám sát vận hành sau triển khai. Thông qua dashboard, nhóm có thể theo dõi tình trạng online/offline của agent, kết quả `Security Configuration Assessment (SCA)`, thông tin `Vulnerability Detection`, cũng như quan sát các thay đổi cấu hình hoặc sự kiện bảo mật trên từng máy.
+Lưu ý quan trọng:
+- Phải `apply` stack Windows trước, sau đó mới `apply` stack Linux để bảo đảm network `windows-lab-net` đã tồn tại.
+- Bộ mã hạ tầng này chỉ chạy trên môi trường Linux kernel có hỗ trợ ảo hóa `KVM/QEMU`.
 
-Trong quy trình triển khai hiện tại, Wazuh được tự động hóa bằng Ansible. Sau khi các máy Windows được bootstrap kênh quản trị từ xa, playbook sẽ cài Wazuh agent lên từng máy và kết nối chúng về manager. Nhờ đó, hệ thống có thể được đánh giá tập trung, hỗ trợ đối chiếu trước/sau hardening, và tăng giá trị thực tiễn cho đồ án theo hướng giám sát liên tục thay vì chỉ cấu hình một lần.
+### 3.1 Triển khai hạ tầng Windows
+
+Chạy từ thư mục gốc repository:
+
+```bash
+cd kvm/terraform/windows
+terraform init
+terraform apply --auto-approve
+```
+
+Kết quả sau khi apply:
+- Tạo network `windows-lab-net`
+- Tạo 3 VM Windows: `dc01`, `member01`, `fs01`
+- Sinh inventory Ansible cho Windows tại `ansible/inventories/vm/windows.ini`
+
+### 3.2 Triển khai hạ tầng Linux (Wazuh)
+
+```bash
+cd kvm/terraform/linux/wazuh
+terraform init
+terraform apply --auto-approve
+```
+
+Kết quả sau khi apply:
+- Tạo VM Linux `log01`
+- Nối `log01` vào `windows-lab-net`
+- Sinh inventory Ansible cho Linux tại `ansible/inventories/vm/log_server.ini`
+
+### 3.3 Xóa và tạo lại môi trường
+
+Khi cần reset lab, nên destroy theo thứ tự ngược lại:
+
+```bash
+cd kvm/terraform/linux/wazuh
+terraform destroy --auto-approve
+
+cd ../../windows
+terraform destroy --auto-approve
+```
+
+Sau đó apply lại theo đúng thứ tự: `windows` trước, `linux/wazuh` sau.
+
+## 4. Triển khai các công cụ
+
+### 4.1 Wazuh
+Wazuh được triển khai như nền tảng giám sát tập trung cho toàn bộ lab. Trong kiến trúc của nhóm, `log01` đóng vai trò `Wazuh manager/dashboard`, còn `dc01`, `member01`, `fs01` chạy `Wazuh agent` để gửi log, inventory và kết quả SCA.
+
+Việc tích hợp Wazuh giúp theo dõi trạng thái sau hardening theo thời gian thực: online/offline agent, cảnh báo bảo mật, kết quả `Security Configuration Assessment (SCA)` và `Vulnerability Detection`.
+
+Lý do lựa chọn Wazuh trong đồ án:
+- `Ansible` và `Wazuh` không trùng vai trò mà bổ trợ cho nhau. `Ansible` là công cụ **thực thi thay đổi cấu hình** hàng loạt (audit/remediate/post-audit), còn `Wazuh` là công cụ **giám sát liên tục** sau khi cấu hình đã áp dụng.
+- Nếu chỉ dùng Ansible pipeline, hệ thống chủ yếu được kiểm tra tại thời điểm chạy playbook; các thay đổi phát sinh ngoài ý muốn sau đó (drift cấu hình, tắt dịch vụ bảo mật, thay đổi policy thủ công) có thể không được phát hiện ngay.
+- Wazuh cung cấp lớp vận hành SOC cơ bản cho lab: thu thập sự kiện tập trung, theo dõi mức tuân thủ theo thời gian, cảnh báo khi có dấu hiệu lệch chuẩn hoặc rủi ro mới.
+- Việc thêm Wazuh góp phần hoàn thiện vòng đời bảo mật theo mô hình: `Triển khai (Ansible) -> Giám sát liên tục (Wazuh) -> Cảnh báo/điều chỉnh`.
 
 #### Lệnh setup Wazuh
-Chạy các lệnh sau trong thư mục `ansible`:
+Chạy trong thư mục `ansible`:
 
 ```bash
 cd ansible
-ansible-playbook playbooks/bootstrap/bootstrap_windows.yml
-ansible-playbook playbooks/wazuh/wazuh.yml
+ansible-playbook -i inventories/vm/windows.ini playbooks/bootstrap/bootstrap_windows.yml
+ansible-playbook -i inventories/vm/log_server.ini -i inventories/vm/windows.ini playbooks/wazuh/wazuh.yml
 ```
 
 Trong đó:
-- `bootstrap/bootstrap_windows.yml`: mở và duy trì kênh quản trị từ xa trên các máy Windows
-- `wazuh/wazuh.yml`: chạy toàn bộ quy trình cài `Wazuh manager` trên `log01` và `Wazuh agent` trên các máy Windows
+- `bootstrap/bootstrap_windows.yml`: bootstrap kênh WinRM trên các máy Windows
+- `wazuh/wazuh.yml`: cài `Wazuh manager` trên `log01` và `Wazuh agent` trên các máy Windows
 
-Nếu cần chạy tách riêng từng phần, có thể dùng:
+Nếu cần chạy tách:
 
 ```bash
 cd ansible
-ansible-playbook playbooks/wazuh/wazuh_server.yml
-ansible-playbook playbooks/wazuh/wazuh_agent.yml
+ansible-playbook -i inventories/vm/log_server.ini playbooks/wazuh/wazuh_server.yml
+ansible-playbook -i inventories/vm/log_server.ini -i inventories/vm/windows.ini playbooks/wazuh/wazuh_agent.yml
 ```
 
-#### Tài khoản mặc định của Wazuh dashboard
-Role `wazuh_manager` hiện đã tự đặt mật khẩu dashboard theo biến trong `group_vars/log_servers.yml`.
-
-Thông tin mặc định hiện tại:
+#### Tài khoản mặc định Wazuh dashboard
 - user: `admin`
 - password: `AdminWazuh9*`
 
-### 3.2 HardeningKitty
+### 4.2 HardeningKitty
+HardeningKitty trong pipeline cần 2 thành phần local:
+- `module/`: engine thực thi (`HardeningKitty.psd1`, `HardeningKitty.psm1`)
+- `lists/`: baseline/finding list để chấm điểm theo vai trò máy chủ (DC/Member)
 
-Để tránh commit 2 file module quá lớn, tải tự động từ upstream trước khi chạy pipeline:
+Để chạy từ đầu, thực hiện bootstrap như sau:
 
 ```bash
-mkdir -p tooling/hardeningkitty/module
+mkdir -p tooling/hardeningkitty/module tooling/hardeningkitty/lists
+
+# 1) Tải engine HardeningKitty từ upstream
 curl -fsSL -o tooling/hardeningkitty/module/HardeningKitty.psd1 \
   https://raw.githubusercontent.com/0x6d69636b/windows_hardening/master/HardeningKitty.psd1
 curl -fsSL -o tooling/hardeningkitty/module/HardeningKitty.psm1 \
   https://raw.githubusercontent.com/0x6d69636b/windows_hardening/master/HardeningKitty.psm1
+
+# 2) Tải 2 finding list mặc định đang dùng trong đồ án
+#    (mapping tại ansible/inventories/vm/group_vars/all.yml)
+curl -fsSL -o tooling/hardeningkitty/lists/finding_list_msft_security_baseline_windows_server_2022_21h2_dc_machine.csv \
+  https://raw.githubusercontent.com/0x6d69636b/windows_hardening/master/lists/finding_list_msft_security_baseline_windows_server_2022_21h2_dc_machine.csv
+curl -fsSL -o tooling/hardeningkitty/lists/finding_list_msft_security_baseline_windows_server_2022_21h2_member_machine.csv \
+  https://raw.githubusercontent.com/0x6d69636b/windows_hardening/master/lists/finding_list_msft_security_baseline_windows_server_2022_21h2_member_machine.csv
+
+# 3) Kiểm tra nhanh trước khi chạy pipeline
+ls -la tooling/hardeningkitty/module
+ls -la tooling/hardeningkitty/lists | grep -E "windows_server_2022_21h2_(dc|member)_machine"
 ```
 
-## 4. Triển khai quy trình benchmark
+## 5. Triển khai quy trình benchmark
+
+Quy trình benchmark trong đồ án được chạy theo vòng đời chuẩn:
+`Bootstrap -> Audit -> Remediation -> Post-Audit -> Validation (HardeningKitty) -> Report`.
+
+### 5.1 Chạy toàn bộ pipeline (khuyến nghị)
+
+```bash
+cd ansible
+
+# B1: Bootstrap kênh quản trị WinRM ổn định trước
+ansible-playbook -i inventories/vm/windows.ini playbooks/bootstrap/bootstrap_windows.yml
+
+# B2: Chạy full pipeline benchmark
+ansible-playbook -i inventories/vm/windows.ini playbooks/pipeline/pipeline.yml
+```
+
+### 5.2 Chạy theo từng pha (khi cần debug)
+
+```bash
+cd ansible
+
+# Resolve runtime account WinRM
+ansible-playbook -i inventories/vm/windows.ini playbooks/pipeline/resolve_windows_runtime.yml
+
+# Audit
+ansible-playbook -i inventories/vm/windows.ini playbooks/ops/audit.yml
+
+# Remediation
+ansible-playbook -i inventories/vm/windows.ini playbooks/ops/remediation.yml
+
+# Post-Audit
+ansible-playbook -i inventories/vm/windows.ini playbooks/ops/post_audit.yml
+
+# Validation (HardeningKitty)
+ansible-playbook -i inventories/vm/windows.ini playbooks/ops/validation.yml
+
+# Report
+ansible-playbook -i inventories/vm/windows.ini playbooks/ops/report.yml
+```
+
+### 5.3 Vị trí kết quả
+
+- Report pipeline (HTML/JSON/CSV) lưu tại: `pipeline/reports/<host>/<module>/`
+- Log thực thi script trên Windows: `C:\CIS-Automation\Logs\`
+- Kết quả HardeningKitty được Ansible thu về thư mục report theo từng host.
+
+### 5.4 Kiểm chứng giám sát tập trung bằng Wazuh
+
+Sau khi pipeline hoàn tất, chạy Wazuh để giám sát định kỳ và chấm SCA tập trung:
+
+```bash
+cd ansible
+ansible-playbook -i inventories/vm/log_server.ini -i inventories/vm/windows.ini playbooks/wazuh/wazuh.yml
+```
+
+Trong cấu hình hiện tại, agent dùng custom policy:
+`cis_win2022_v5_custom_nt542.yml`.
+
+### 5.5 Lưu ý vận hành
+
+- Nếu vừa recreate VM, luôn chạy lại `bootstrap_windows.yml` trước pipeline.
+- Nếu WinRM báo `credentials were rejected`, kiểm tra lại account runtime và trạng thái dịch vụ WinRM trên host.
+- Nếu cần dọn report cũ trước khi benchmark lại, dọn trong `pipeline/reports/` để tránh nhầm kết quả.
